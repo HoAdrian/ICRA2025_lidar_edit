@@ -556,13 +556,37 @@ class Voxelizer:
 
 
         return new_occupancy
+    
+    def get_intensity_grid(self, points_with_intensity, mode):
+        '''
+        Get an occupancy grid of intensity, each occupied voxel has a value equal to the average intensity value of the points in that voxel. 
+
+        points_with_intensity: (N,d) where d >= 4
+        mode: polar or spherical
+
+        return an intensity grid of shape (#r, #theta, #z)
+        '''
+        grid_idxs = torch.tensor(self.get_grid_ind(cart2polar(points_with_intensity[:,:3], mode=mode))) #(N,3)
+        intensity = torch.tensor(points_with_intensity[:,3])#/255.0 # normalized intensity, (N,). INtensity values are between 0 and 255
+
+        uniq_grid_idxs, inverse_idxs = torch.unique(grid_idxs, sorted=True, return_inverse=True, dim=0) #(K,3), (N,)
+        intensity_sum = torch.zeros(len(uniq_grid_idxs)).float() #(K,)
+        duplicate_count = torch.zeros(len(uniq_grid_idxs)).float() #(K,)
+        intensity_sum.scatter_add_(0, inverse_idxs, intensity)
+        duplicate_count.scatter_add_(0, inverse_idxs, torch.ones_like(intensity))
+        intensity_sum/=duplicate_count
+
+        intensity_occupancy = torch.zeros(*self.grid_size)
+        intensity_occupancy[uniq_grid_idxs[:,0], uniq_grid_idxs[:,1], uniq_grid_idxs[:,2]] = intensity_sum
+        
+        return intensity_occupancy.numpy()
 
 
 
         
 
 class PolarDataset(data.Dataset):
-  def __init__(self, in_dataset, voxelizer, rotate_aug = False, flip_aug = False, is_test=False, use_voxel_random_mask=False, vis=False, insert=False):
+  def __init__(self, in_dataset, voxelizer, rotate_aug = False, flip_aug = False, is_test=False, use_voxel_random_mask=False, vis=False, insert=False, use_intensity_grid=False):
         '''
         Our pipelines or models directly access this dataset to obtain data. 
         - In_dataset: the dataset that returns a sample of the processed nuscenes data
@@ -571,6 +595,7 @@ class PolarDataset(data.Dataset):
         - set is_test to True if you want some auxiliary information about the dataset
         - IMPORTANT: set use_voxel_random_mask to True if you want to randomly drop some mask over the background voxels
         - insert: am I inserting vehicle or not
+        - use_intensity_grid: whether you are using this dataset to train a network that predicts an intensity grid
         '''
         'Initialization'
         self.point_cloud_dataset = in_dataset
@@ -591,6 +616,7 @@ class PolarDataset(data.Dataset):
             self.use_z = in_dataset.use_z
             
         self.insert = insert
+        self.use_intensity_grid = use_intensity_grid
         print("polar dataset COORDINATE mode: ", self.mode)
         print("polar dataset use_z: ", self.use_z)
 
@@ -609,20 +635,20 @@ class PolarDataset(data.Dataset):
         points_xyz = points_xyz[points_within_bound_mask]
         points_in_box_mask = points_in_box_mask[points_within_bound_mask]
 
-        new_points_xyz_has_bckgrnd = points_xyz[:,:3]
+        new_points_xyz_has_bckgrnd = points_xyz#[:,:3]
         
         nonempty_boxes = []
         if self.insert:
             #nonempty_boxes = []
             for i, box in enumerate(obj_properties[9]):
-                mask = points_in_box(box, new_points_xyz_has_bckgrnd.T, wlh_factor = 1.0).astype(int)
+                mask = points_in_box(box, new_points_xyz_has_bckgrnd[:,:3].T, wlh_factor = 1.0).astype(int)
                 if np.sum(mask)!=0:
                     nonempty_boxes.append(box)
 
-        if self.is_test or not self.use_random_mask:
-            # don't do datat augmentation during evaluation or actor insertion
-            assert(self.rotate_aug==False)
-            assert(self.flip_aug==False)
+        # if self.is_test or not self.use_random_mask:
+        #     # don't do datat augmentation during evaluation or actor insertion
+        #     assert(self.rotate_aug==False)
+        #     assert(self.flip_aug==False)
         
         # random data augmentation by rotation
         if self.rotate_aug:
@@ -699,6 +725,11 @@ class PolarDataset(data.Dataset):
         
         data_tuple = (has_bckgrnd_data, no_bckgrnd_data, voxel_label_data)
 
+        if self.use_intensity_grid:
+            intensity_grid = self.voxelizer.get_intensity_grid(new_points_xyz_has_bckgrnd, mode=self.mode)
+            data_tuple = (has_bckgrnd_data, no_bckgrnd_data, voxel_label_data, intensity_grid)
+
+
         ## visualization
         if self.vis:
             max_radius = np.max(new_points_polar_has_bckgrnd[:,0])/4
@@ -743,10 +774,8 @@ def collate_fn_BEV(data):
 
     # grid_ind_has = [torch.from_numpy(d[0]) for d in has_bckgrnd_datas] #(B,num_points_i,3), list
     # grid_ind_no = [torch.from_numpy(d[0])for d in no_bckgrnd_datas] #(B,num_points_i,3), list
-
     # return_points_has = [torch.from_numpy(d[1]) for d in has_bckgrnd_datas] #(B,num_points_i,6), list
     # return_points_no = [torch.from_numpy(d[1]) for d in no_bckgrnd_datas] #(B,num_points_i,6), list
-
     # voxel_centers_has = [torch.from_numpy(d[2]) for d in has_bckgrnd_datas] #(B,num_points_i,3), list
     # voxel_centers_no = [torch.from_numpy(d[2]) for d in no_bckgrnd_datas] #(B,num_points_i,3), list
 
@@ -761,5 +790,41 @@ def collate_fn_BEV(data):
     no = (grid_ind_no, return_points_no, voxel_centers_no, torch.from_numpy(voxel_occupancy_no))
 
     data_batch = (has, no, voxel_label, BEV_label)
+
+    return data_batch
+
+def collate_fn_BEV_intensity(data):
+    has_bckgrnd_datas = [d[0] for d in data]
+    no_bckgrnd_datas = [d[1] for d in data]
+    voxel_datas = [d[2] for d in data]
+
+    voxel_label_list = [d[0] for d in voxel_datas]
+    BEV_label_list = [d[1] for d in voxel_datas]
+    voxel_label = torch.from_numpy(np.stack(voxel_label_list, axis=0)) #(B,#r,#theta,#z)
+    BEV_label = torch.from_numpy(np.stack(BEV_label_list, axis=0)) #(B,#r,#theta)
+
+    voxel_occupancy_has = np.stack([d[3] for d in has_bckgrnd_datas], axis=0) #(B,#r,#theta,#z)
+    voxel_occupancy_no = np.stack([d[3] for d in no_bckgrnd_datas], axis=0) #(B,#r,#theta,#z)
+
+    # grid_ind_has = [torch.from_numpy(d[0]) for d in has_bckgrnd_datas] #(B,num_points_i,3), list
+    # grid_ind_no = [torch.from_numpy(d[0])for d in no_bckgrnd_datas] #(B,num_points_i,3), list
+    # return_points_has = [torch.from_numpy(d[1]) for d in has_bckgrnd_datas] #(B,num_points_i,6), list
+    # return_points_no = [torch.from_numpy(d[1]) for d in no_bckgrnd_datas] #(B,num_points_i,6), list
+    # voxel_centers_has = [torch.from_numpy(d[2]) for d in has_bckgrnd_datas] #(B,num_points_i,3), list
+    # voxel_centers_no = [torch.from_numpy(d[2]) for d in no_bckgrnd_datas] #(B,num_points_i,3), list
+
+    grid_ind_has = None
+    grid_ind_no = None
+    return_points_has = None
+    return_points_no = None
+    voxel_centers_has = None
+    voxel_centers_no = None
+
+    has = (grid_ind_has, return_points_has, voxel_centers_has, torch.from_numpy(voxel_occupancy_has))
+    no = (grid_ind_no, return_points_no, voxel_centers_no, torch.from_numpy(voxel_occupancy_no))
+
+    intensity_datas = [d[3] for d in data]
+    intensity_grid = np.stack(intensity_datas, axis=0) #(B,#r,#theta,#z)
+    data_batch = (has, no, voxel_label, BEV_label, torch.from_numpy(intensity_grid))
 
     return data_batch

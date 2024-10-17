@@ -128,7 +128,11 @@ class Nuscenes(data.Dataset):
                 elif self.split == 'test':
                     sample_token = self.train_token_list[index]
 
-
+                # sample_token =  "0c630e44d5b645a39cfdf15ae9a481aa"#"18616ac104ee4f92b6127dc67bb85f0b"
+                # print(sample_token)
+                
+                # print(self.nusc.get('sample_data', sample_token)['filename'])
+                # assert(1==0)
                 #### get lidar points and bounding boxes
                 lidar_path = os.path.join(self.data_path, self.nusc.get('sample_data', sample_token)['filename'])
                 points_xyz = np.fromfile(lidar_path, dtype = np.float32).reshape((-1, 5))
@@ -578,6 +582,7 @@ class NuscenesForeground(data.Dataset):
                 curr_sample_table_token = self.train_sample_table_token_list[index]
 
             
+            
             #### get lidar points and bounding boxes
             lidar_path = os.path.join(self.data_path, self.nusc.get('sample_data', sample_token)['filename'])
             points_xyz = np.fromfile(lidar_path, dtype = np.float32).reshape((-1, 5))
@@ -588,7 +593,8 @@ class NuscenesForeground(data.Dataset):
             data_path, boxes, camera_intrinsic = self.nusc.get_sample_data(sample_token, selected_anntokens=sample_annotation_tokens) #in sensor frame
             single_sweep_points_xyz = np.copy(points_xyz)
 
-           
+            # if index==52:
+            #     self.nusc.render_sample_data(self.nusc.get('sample_data', sample['data']['CAM_FRONT'])['token'])
 
                       
             if len(boxes)==0 and not self.any_scene:

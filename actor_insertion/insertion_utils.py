@@ -123,11 +123,16 @@ def insert_vehicle_pc(vehicle_pc, bbox, insert_xyz_pos, rotation_angle, voxels_o
     new_bbox.rotate(pyquaternion_from_angle(rotation_angle))
     new_bbox.translate(insert_xyz_pos)
 
-    ### ensure no collision with inpainted background points
-    if inpainted_background is not None: 
-        avg_ground_points_z = np.mean(ground_points, axis=0)[2]
-        if np.sum(points_in_box(new_bbox, inpainted_background[inpainted_background[:,2]>avg_ground_points_z].T, wlh_factor = 1.0))>0:
-            return None
+    ### ensure no collision with inpainted background points that are not ground points
+    # if inpainted_background is not None: 
+    #     ground_in_new_box_mask = points_in_box(new_bbox, ground_points.T, wlh_factor = 1.0)
+    #     if np.sum(ground_in_new_box_mask)!=0:
+    #         avg_ground_points_z = np.max(ground_points[ground_in_new_box_mask], axis=0)[2]
+    #     else:
+    #         avg_ground_points_z = np.max(ground_points, axis=0)[2]
+    #     margin = 0.1
+    #     if np.sum(points_in_box(new_bbox, inpainted_background[inpainted_background[:,2]>avg_ground_points_z+margin].T, wlh_factor = 1.0))>0:
+    #         return None
 
     #### project to spherical grid, apply occlusion and convert back to point cloud
     polar_vehicle = cart2polar(vehicle_pc, mode=mode)     
@@ -488,77 +493,77 @@ def insertion_vehicles_driver(inpainted_points_masked, inpainted_points, allocen
     #### timestamp (ignore this)
     new_points_xyz[:,4] = 0.0 #original_points[0,4]
 
-    # # ######## visualize without resampling and occlusion
-    print("############## visualizing inserted cars with no resampling nor occlusion")
-    pcd = open3d.geometry.PointCloud()
-    pcd.points = open3d.utility.Vector3dVector(np.array(new_points_xyz_no_resampling_occlusion))
-    pcd_colors = np.tile(np.array([[0,0,1]]), (len(new_points_xyz_no_resampling_occlusion), 1))
-    mask_vehicle = np.ones((len(new_points_xyz_no_resampling_occlusion),))==0
-    for i, box in enumerate(new_bboxes_copy):
-        mask = points_in_box(box, new_points_xyz_no_resampling_occlusion.T, wlh_factor = 1.0)
-        mask_vehicle = mask_vehicle | mask
-    pcd_colors[mask_vehicle==1, 0] = 1
-    pcd_colors[mask_vehicle==1, 2] = 0
-    pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
-    mat = open3d.visualization.rendering.MaterialRecord()
-    mat.shader = 'defaultUnlit'
-    mat.point_size = 3.0
+    ############### ######## visualize without resampling and occlusion
+    # print("############## visualizing inserted cars with no resampling nor occlusion")
+    # pcd = open3d.geometry.PointCloud()
+    # pcd.points = open3d.utility.Vector3dVector(np.array(new_points_xyz_no_resampling_occlusion))
+    # pcd_colors = np.tile(np.array([[0,0,1]]), (len(new_points_xyz_no_resampling_occlusion), 1))
+    # mask_vehicle = np.ones((len(new_points_xyz_no_resampling_occlusion),))==0
+    # for i, box in enumerate(new_bboxes_copy):
+    #     mask = points_in_box(box, new_points_xyz_no_resampling_occlusion.T, wlh_factor = 1.0)
+    #     mask_vehicle = mask_vehicle | mask
+    # pcd_colors[mask_vehicle==1, 0] = 1
+    # pcd_colors[mask_vehicle==1, 2] = 0
+    # pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
+    # mat = open3d.visualization.rendering.MaterialRecord()
+    # mat.shader = 'defaultUnlit'
+    # mat.point_size = 3.0
 
-    ground_pcd = open3d.geometry.PointCloud()
-    ground_pcd.points = open3d.utility.Vector3dVector(dataset.point_cloud_dataset.ground_points[:,:3][:,:3])
-    ground_pcd_colors = np.tile(np.array([[0,1,0]]), (len(dataset.point_cloud_dataset.ground_points[:,:3][:,:3]), 1))
-    ground_pcd.colors = open3d.utility.Vector3dVector(ground_pcd_colors)
+    # ground_pcd = open3d.geometry.PointCloud()
+    # ground_pcd.points = open3d.utility.Vector3dVector(dataset.point_cloud_dataset.ground_points[:,:3][:,:3])
+    # ground_pcd_colors = np.tile(np.array([[0,1,0]]), (len(dataset.point_cloud_dataset.ground_points[:,:3][:,:3]), 1))
+    # ground_pcd.colors = open3d.utility.Vector3dVector(ground_pcd_colors)
 
-    lines = [[0, 1], [1, 2], [2, 3], [0, 3],
-         [4, 5], [5, 6], [6, 7], [4, 7],
-         [0, 4], [1, 5], [2, 6], [3, 7]]
-    visboxes = []
-    for box in new_bboxes_copy:
-        line_set = open3d.geometry.LineSet()
-        line_set.points = open3d.utility.Vector3dVector(box.corners().T)
-        line_set.lines = open3d.utility.Vector2iVector(lines)
-        if vehicle_names[box.name]=="car":
-            colors = [[1, 0, 0] for _ in range(len(lines))]
-        elif vehicle_names[box.name]=="truck":
-            colors = [[0, 1, 0] for _ in range(len(lines))]
-        elif vehicle_names[box.name]=="bus":
-            colors = [[0, 0, 1] for _ in range(len(lines))]
-        line_set.colors = open3d.utility.Vector3dVector(colors)
-        visboxes.append(line_set)
+    # lines = [[0, 1], [1, 2], [2, 3], [0, 3],
+    #      [4, 5], [5, 6], [6, 7], [4, 7],
+    #      [0, 4], [1, 5], [2, 6], [3, 7]]
+    # visboxes = []
+    # for box in new_bboxes_copy:
+    #     line_set = open3d.geometry.LineSet()
+    #     line_set.points = open3d.utility.Vector3dVector(box.corners().T)
+    #     line_set.lines = open3d.utility.Vector2iVector(lines)
+    #     if vehicle_names[box.name]=="car":
+    #         colors = [[1, 0, 0] for _ in range(len(lines))]
+    #     elif vehicle_names[box.name]=="truck":
+    #         colors = [[0, 1, 0] for _ in range(len(lines))]
+    #     elif vehicle_names[box.name]=="bus":
+    #         colors = [[0, 0, 1] for _ in range(len(lines))]
+    #     line_set.colors = open3d.utility.Vector3dVector(colors)
+    #     visboxes.append(line_set)
 
-    open3d.visualization.draw_geometries([pcd, ground_pcd]+visboxes)
+    # open3d.visualization.draw_geometries([pcd, ground_pcd]+visboxes)
 
 
-    print("############## visualizing inserted cars with POST-PROCESSING i.e. OCCLUSION")
-    pcd = open3d.geometry.PointCloud()
-    pcd.points = open3d.utility.Vector3dVector(np.array(new_scene_points_xyz))
-    pcd_colors = np.tile(np.array([[0,0,1]]), (len(new_scene_points_xyz), 1))
-    mask_vehicle = np.ones((len(new_scene_points_xyz),))==0
-    for i, box in enumerate(new_bboxes):
-        mask = points_in_box(box, new_scene_points_xyz.T, wlh_factor = 1.0)
-        mask_vehicle = mask_vehicle | mask
-    pcd_colors[mask_vehicle==1, 0] = 1
-    pcd_colors[mask_vehicle==1, 2] = 0
-    pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
+    # print("############## visualizing inserted cars with POST-PROCESSING i.e. OCCLUSION")
+    # pcd = open3d.geometry.PointCloud()
+    # pcd.points = open3d.utility.Vector3dVector(np.array(new_scene_points_xyz))
+    # pcd_colors = np.tile(np.array([[0,0,1]]), (len(new_scene_points_xyz), 1))
+    # mask_vehicle = np.ones((len(new_scene_points_xyz),))==0
+    # for i, box in enumerate(new_bboxes):
+    #     mask = points_in_box(box, new_scene_points_xyz.T, wlh_factor = 1.0)
+    #     mask_vehicle = mask_vehicle | mask
+    # pcd_colors[mask_vehicle==1, 0] = 1
+    # pcd_colors[mask_vehicle==1, 2] = 0
+    # pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
     
-    lines = [[0, 1], [1, 2], [2, 3], [0, 3],
-         [4, 5], [5, 6], [6, 7], [4, 7],
-         [0, 4], [1, 5], [2, 6], [3, 7]]
-    visboxes = []
-    for box in new_bboxes:
-        line_set = open3d.geometry.LineSet()
-        line_set.points = open3d.utility.Vector3dVector(box.corners().T)
-        line_set.lines = open3d.utility.Vector2iVector(lines)
-        if vehicle_names[box.name]=="car":
-            colors = [[1, 0, 0] for _ in range(len(lines))]
-        elif vehicle_names[box.name]=="truck":
-            colors = [[0, 1, 0] for _ in range(len(lines))]
-        elif vehicle_names[box.name]=="bus":
-            colors = [[0, 0, 1] for _ in range(len(lines))]
-        line_set.colors = open3d.utility.Vector3dVector(colors)
-        visboxes.append(line_set)
+    # lines = [[0, 1], [1, 2], [2, 3], [0, 3],
+    #      [4, 5], [5, 6], [6, 7], [4, 7],
+    #      [0, 4], [1, 5], [2, 6], [3, 7]]
+    # visboxes = []
+    # for box in new_bboxes:
+    #     line_set = open3d.geometry.LineSet()
+    #     line_set.points = open3d.utility.Vector3dVector(box.corners().T)
+    #     line_set.lines = open3d.utility.Vector2iVector(lines)
+    #     if vehicle_names[box.name]=="car":
+    #         colors = [[1, 0, 0] for _ in range(len(lines))]
+    #     elif vehicle_names[box.name]=="truck":
+    #         colors = [[0, 1, 0] for _ in range(len(lines))]
+    #     elif vehicle_names[box.name]=="bus":
+    #         colors = [[0, 0, 1] for _ in range(len(lines))]
+    #     line_set.colors = open3d.utility.Vector3dVector(colors)
+    #     visboxes.append(line_set)
 
-    open3d.visualization.draw_geometries([pcd]+visboxes)
+    # open3d.visualization.draw_geometries([pcd]+visboxes)
 
     
 
@@ -586,27 +591,29 @@ def insertion_vehicles_driver(inpainted_points_masked, inpainted_points, allocen
     #     box_tmp.translate(np.array(pose_record['translation']))
     #     print(" box center in global coordinate: ", box_tmp.center)
 
-    ############# save point cloud 
-    #start_pc_time = timeit.default_timer()
-    pc_name = f'{args.split}_{lidar_sample_token}.bin'
-    os.makedirs(os.path.join(save_lidar_path, "lidar_point_clouds"), exist_ok=True)
-    lidar_full_path = os.path.join(save_lidar_path, "lidar_point_clouds", pc_name)
-    #assert(not os.path.exists(lidar_full_path))
-    new_points_xyz.astype(np.float32).tofile(lidar_full_path)
-    #end_pc_time = timeit.default_timer()
-    #print(f"$$$$$ .bin file point cloud saving time: {end_pc_time - start_pc_time} seconds")
+    if len(new_bboxes)!=0:
+        print("saving point cloud .......")
+        ############# save point cloud 
+        #start_pc_time = timeit.default_timer()
+        pc_name = f'{args.split}_{lidar_sample_token}.bin'
+        os.makedirs(os.path.join(save_lidar_path, "lidar_point_clouds"), exist_ok=True)
+        lidar_full_path = os.path.join(save_lidar_path, "lidar_point_clouds", pc_name)
+        #assert(not os.path.exists(lidar_full_path))
+        new_points_xyz.astype(np.float32).tofile(lidar_full_path)
+        #end_pc_time = timeit.default_timer()
+        #print(f"$$$$$ .bin file point cloud saving time: {end_pc_time - start_pc_time} seconds")
 
 
-    ############## Save the data needed to build the new database
-    token2sample_dict[lidar_sample_token] = (lidar_full_path, bounding_boxes, new_obj_ann_token_list, sample_records, new_ann_info_list)
+        ############## Save the data needed to build the new database
+        token2sample_dict[lidar_sample_token] = (lidar_full_path, bounding_boxes, new_obj_ann_token_list, sample_records, new_ann_info_list)
 
-    # start_dict_time = timeit.default_timer()
-    # print(f"========= SAVING DATA TO {save_lidar_path}")
-    # token2sample_dict_full_path = os.path.join(save_lidar_path, "token2sample.pickle")
-    # with open(token2sample_dict_full_path, 'wb') as handle:
-    #     pickle.dump(token2sample_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    # end_dict_time = timeit.default_timer()
-    # print(f"$$$$$ token2sample dict saving time: {end_dict_time - start_dict_time} seconds")
+        # start_dict_time = timeit.default_timer()
+        # print(f"========= SAVING DATA TO {save_lidar_path}")
+        # token2sample_dict_full_path = os.path.join(save_lidar_path, "token2sample.pickle")
+        # with open(token2sample_dict_full_path, 'wb') as handle:
+        #     pickle.dump(token2sample_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        # end_dict_time = timeit.default_timer()
+        # print(f"$$$$$ token2sample dict saving time: {end_dict_time - start_dict_time} seconds")
 
     return new_scene_points_xyz, new_bboxes, token2sample_dict, voxels_occupancy_has, original_vehicle_boxes
 

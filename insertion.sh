@@ -14,8 +14,8 @@ vqvae_epoch=60
 maskgit_epoch=44 #44 #36
 
 ################### mini dataset for prototyping
-version="v1.0-mini"
-dataset_path="./data/nuscenes/v1.0-mini"
+# version="v1.0-mini"
+# dataset_path="./data/nuscenes/v1.0-mini"
 # vqvae_path="./weights/vqvae_trans_weights"
 # maskgit_path="./weights/maskgit_trans_weights_mini"
 # vqvae_epoch=60
@@ -34,14 +34,11 @@ dense=1
 #python actor_insertion/collect_foreground_objects.py --trainval_data_path=$dataset_path --data_version=$version --pc_path="./foreground_object_pointclouds" --visualize_dense=0 --save_as_pcd=1
 #### visualize the completed point clouds
 #python actor_insertion/collect_foreground_objects.py --trainval_data_path=$dataset_path --data_version=$version --pc_path="./foreground_object_pointclouds" --visualize_dense=1 --save_as_pcd=1
-#### Insert them and visualize!!!
-#python actor_insertion/insert_obj.py --trainval_data_path=$dataset_path --data_version=$version --pc_path="./foreground_object_pointclouds" --dense=$dense --vqvae_path="$vqvae_path/epoch_$vqvae_epoch" --maskgit_path="$maskgit_path/epoch_$maskgit_epoch"
-
 
 
 ###### Generate lidar point clouds dictionaries such that dict[lidar_sample_token] = [lidar_path, List of bounding boxes], where lidar_path is the path where the point cloud of shape (N,3) is saved
-root="/home/shinghei/lidar_generation/tmp_generated_lidar_2"
-#root="/home/shinghei/lidar_generation/OpenPCDet_minghan/data/nuscenes/${version}"
+#root="/home/shinghei/lidar_generation/tmp_generated_lidar_2"
+root="/home/shinghei/lidar_generation/OpenPCDet_minghan/data/nuscenes/${version}"
 
 # split="train"
 # python actor_insertion/generate_raw_dict.py --trainval_data_path=$dataset_path --data_version=$version --save_lidar_path="$root"/raw/"$version" --split=$split
@@ -62,6 +59,9 @@ root="/home/shinghei/lidar_generation/tmp_generated_lidar_2"
 # split="val"
 # python actor_insertion/get_nice_figures.py --trainval_data_path=$dataset_path --data_version=$version --pc_path="./foreground_object_pointclouds" --dense=$dense --vqvae_path="$vqvae_path/epoch_$vqvae_epoch" --maskgit_path="$maskgit_path/epoch_$maskgit_epoch" --save_lidar_path=$root --split=$split
 
+intensity_vqvae_path="./weights/intensity_vqvae_weights"
+intensity_vqvae_epoch=12 #40 #12
+echo "INTENSITY VQVAE PATH: ${intensity_vqvae_path}"
 
 split="val"
 python actor_insertion/generate_insert_obj_dict_baselines.py --trainval_data_path=$dataset_path --data_version=$version --pc_path="./foreground_object_pointclouds" --dense=$dense --vqvae_path="$vqvae_path/epoch_$vqvae_epoch" --maskgit_path="$maskgit_path/epoch_$maskgit_epoch" --save_lidar_path=$root --split=$split

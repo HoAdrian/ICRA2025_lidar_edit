@@ -5,8 +5,8 @@ import numpy as np
 import sys
 sys.path.append(".")
 sys.path.append("../")
-sys.path.append("../../models")
-
+sys.path.append("../models")
+print(os.path.abspath("../models"))
 from data_utils import *
 from dataset import Voxelizer, PolarDataset, collate_fn_BEV
 from dataset_nuscenes import Nuscenes
@@ -45,7 +45,7 @@ if __name__=="__main__":
     
     grid_size = [512, 512, 32]
     voxelizer = Voxelizer(grid_size=grid_size, max_bound=max_bound, min_bound=min_bound)
-    train_pt_dataset = Nuscenes('../../data/nuscenes/v1.0-mini', version = 'v1.0-mini', split = 'val', filter_valid_scene=True, vis=True, voxelizer=voxelizer, use_z=use_z, mode=mode)
+    train_pt_dataset = Nuscenes('../data/nuscenes/v1.0-trainval', version = 'v1.0-trainval', split = 'val', filter_valid_scene=True, vis=True, voxelizer=voxelizer, use_z=use_z, mode=mode)
     train_dataset=PolarDataset(train_pt_dataset, voxelizer, rotate_aug=False, flip_aug=False, use_voxel_random_mask=False, vis=True, is_test=True) 
    
     print("num train: ", len(train_dataset))
@@ -62,10 +62,11 @@ if __name__=="__main__":
 
         original_points = train_dataset.points_xyz
         intensity_grid = voxelizer.get_intensity_grid(original_points, mode)
+
         voxels_occupancy = np.copy(intensity_grid)
         voxels_occupancy[voxels_occupancy>0] = 1.0
 
-        ### visualize original point cloud
+        ### visualize original point cloud WITH INTENSITY
         print(f"++++ visualizing ORIGINAL POINT CLOUD with intensity")
         print(original_points.shape)
         pcd = open3d.geometry.PointCloud()
@@ -74,22 +75,24 @@ if __name__=="__main__":
         pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
         mat = open3d.visualization.rendering.MaterialRecord()
         mat.shader = 'defaultUnlit'
-        mat.point_size = 2.0
+        mat.point_size = 3.0
         open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
 
-        ### visualize voxelized points
+        ### visualize voxelized points WITH INTENSITY
         voxelized_points = voxelizer.voxels2points(torch.tensor(voxels_occupancy).unsqueeze(0).permute(0,3,1,2), mode=mode)[0]
         non_zero_indices = torch.nonzero(torch.tensor(voxels_occupancy).detach().cpu(), as_tuple=True)
         voxelized_intensity = np.zeros((len(voxelized_points),))
         voxelized_intensity = intensity_grid[non_zero_indices[0].numpy(), non_zero_indices[1].numpy(), non_zero_indices[2].numpy()]
+        print(f"++++ visualizing voxelized POINT CLOUD with intensity")
+        print(voxelized_points.shape)
         pcd = open3d.geometry.PointCloud()
         pcd.points = open3d.utility.Vector3dVector(np.array(voxelized_points))
-        pcd_colors = np.tile(np.array([[0,0,1]]), (len(voxelized_points), 1))*voxelized_intensity[:,np.newaxis]
+        pcd_colors = np.tile(np.array([[0,0,1]]), (len(voxelized_points), 1))*voxelized_intensity[:,np.newaxis]/255.0
         pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
         #open3d.visualization.draw_geometries([pcd]) 
         mat = open3d.visualization.rendering.MaterialRecord()
         mat.shader = 'defaultUnlit'
-        mat.point_size = 2.0
+        mat.point_size = 3.0
         open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
 
 

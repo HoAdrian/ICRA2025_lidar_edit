@@ -41,10 +41,14 @@ echo "++++ !!!! IMPORTANT : Before training, check dataset path, set the config 
 
 
 #python train_transformer_models/train_maskgit_transformers.py --trainval_data_path=$dataset_path --data_version=$version --vqvae_path="$vqvae_path/epoch_$vqvae_epoch" --weight_path="$maskgit_path" --num_epochs=201 --resume_epoch=40
-python train_transformer_models/test_maskgit_transformers.py --trainval_data_path=$dataset_path --data_version=$version --vqvae_path="$vqvae_path/epoch_$vqvae_epoch" --maskgit_path="$maskgit_path/epoch_$maskgit_epoch" --figures_path="./figures/maskgit_trans" --blank_code_path="." --blank_code_name="blank_code" --gen_blank_code=True
-
-
-
+# python train_transformer_models/test_maskgit_transformers.py --trainval_data_path=$dataset_path --data_version=$version --vqvae_path="$vqvae_path/epoch_$vqvae_epoch" --maskgit_path="$maskgit_path/epoch_$maskgit_epoch" --figures_path="./figures/maskgit_trans" --blank_code_path="." --blank_code_name="blank_code" --gen_blank_code=True
 
 
 # tensorboard --logdir="./figures/mask_git_trans/runs"
+
+
+intensity_vqvae_path="./weights/intensity_vqvae_weights"
+intensity_vqvae_epoch=12 #40 #12
+echo "INTENSITY VQVAE PATH: ${intensity_vqvae_path}"
+#python train_transformer_models/train_intensity_vqvae.py --trainval_data_path=$dataset_path --data_version=$version --weight_path="$intensity_vqvae_path" --num_epochs=121 --resume_epoch=44
+python train_transformer_models/test_intensity_vqvae.py --trainval_data_path=$dataset_path --data_version=$version --vqvae_path="$intensity_vqvae_path/epoch_$intensity_vqvae_epoch" --figures_path="./figures/intensity_vqvae" # epoch 80 for mini

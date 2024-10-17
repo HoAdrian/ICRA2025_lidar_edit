@@ -103,6 +103,8 @@ def count(idx):
 class VQVAETrans(nn.Module):
     '''
     encoder, quantizer and decoder
+
+    intensity: whether to reconstructs a grid of intensity values
     '''
     def __init__(
         self,
@@ -117,7 +119,7 @@ class VQVAETrans(nn.Module):
         num_code=1024,
         beta=0.1,
         device="cpu",
-        dead_limit=256
+        dead_limit=256,
     ):
         super().__init__()
 
@@ -218,6 +220,44 @@ class VQVAETrans(nn.Module):
         # rec_x = rec_x.reshape(B, C, H, W)
 
         return loss, rec_x, rec_x_logit, perplexity, min_encodings, min_encoding_indices
+    
+    def compute_intensity_loss(self, x, y):
+        '''
+        x: shape (B,in_chans,H,W), x should be the ground truth occupancy grid
+        y: shape (B,in_chans,H,W), y should be the ground truth intensity grid
+
+        compute the loss of reconstructed intensity (Note: intensity at empty voxel is zero)
+        '''
+        rec_x_logit, codebook_commitment_loss, perplexity, min_encodings, min_encoding_indices = self.forward(x)
+        B,C,H,W = x.shape
+        rec_x_logit = rec_x_logit #.sigmoid() #normalized intensity
+
+        ########### weight for the positive intensity
+        # on average, the occupancy ratio of grid cells is 0.002
+        # avg_dataset_occupancy_ratio = 0.002
+        # weight = (1-avg_dataset_occupancy_ratio)/avg_dataset_occupancy_ratio*0.01
+        with torch.no_grad():
+            batch_occupancy_ratio = (torch.sum(x)/(B*C*H*W)).item()
+            weight = (1-batch_occupancy_ratio)/batch_occupancy_ratio*0.02#*0.01
+            # print("batch_occupancy_ratio: ", batch_occupancy_ratio)
+            # print("pos weight: ", weight)
+       
+        positive_class_mask = (x>0) # upweigh occupied voxels (not nonzero intensity)
+        negative_class_mask = (x<=0)
+        rec_loss_pos = torch.mean((y[positive_class_mask] - rec_x_logit[positive_class_mask])**2)
+        rec_loss_neg = torch.mean((y[negative_class_mask] - rec_x_logit[negative_class_mask])**2)
+        
+        loss = weight*rec_loss_pos + rec_loss_neg + codebook_commitment_loss
+        
+        rec_x = (rec_x_logit).float()
+
+        # rec_x_logit = rec_x_logit.reshape(B, -1)
+        # rec_x = (torch.nn.functional.gumbel_softmax(rec_x_logit, tau=2)>=0.01).float()
+        # print(rec_x)
+        # rec_x = rec_x.reshape(B, C, H, W)
+
+        return loss, rec_x, rec_x_logit, perplexity, min_encodings, min_encoding_indices
+
 
         
     def forward(self, x):

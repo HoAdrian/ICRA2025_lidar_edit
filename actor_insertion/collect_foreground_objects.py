@@ -56,6 +56,13 @@ if __name__=="__main__":
     save_as_pcd = args.save_as_pcd==1
     count_bus_val = 0
 
+    np.random.seed(24) #2021
+    #trainval
+    #20: good single truck, bus, car
+    #25
+    #53: good bus, bad truck
+    #24: all good
+
     os.makedirs(args.pc_path, exist_ok=True)
     
     if not visualize_dense:
@@ -73,8 +80,13 @@ if __name__=="__main__":
         allocentric_dict = {name: [[], [], [], [], [], [], [], [], [],[],[],[], []] for name in vehicle_names.values()}
         sample_dict = {}
 
+        max_num_bus = 1
+        max_num_truck = 1
+        max_num_car = 1
+        num_car, num_truck, num_bus = 0,0,0
+
         # use val_dataset first if it is mini
-        for i, dataset in enumerate([train_dataset, val_dataset]):
+        for i, dataset in enumerate([val_dataset, train_dataset]):
             if i==1:
                 is_train=True
             else:
@@ -82,19 +94,28 @@ if __name__=="__main__":
             
 
             samples = np.arange(len(dataset))
-            
+            np.random.shuffle(samples)
+            samples[0] = 40
             for k in samples:
-                if os.path.exists(os.path.join(args.pc_path, "bus")) and os.path.exists(os.path.join(args.pc_path, "car")) and os.path.exists(os.path.join(args.pc_path, "truck")):
+                if os.path.exists(os.path.join(args.pc_path, "bus")):
                     num_bus = len(os.listdir(os.path.join(args.pc_path, "bus")))
+                    # if num_bus>=1:
+                    #     print(f"!!! sample {k}")
+                    #     raise Exception("DONE")
+
+                if os.path.exists(os.path.join(args.pc_path, "car")):
                     num_car = len(os.listdir(os.path.join(args.pc_path, "car")))
+
+                if os.path.exists(os.path.join(args.pc_path, "truck")):
                     num_truck = len(os.listdir(os.path.join(args.pc_path, "truck")))
-                    print(f" . num bus: {num_bus} | num car: {num_car} | num truck: {num_truck}")
-                    if num_bus>=40 and num_car>=500 and num_truck>=180:
-                        print(num_bus)
-                        print(num_car)
-                        print(num_truck)
-                        print("ENOUGH is ENOUGH, enough car, bus and trucks")
-                        break
+
+                print(f" . num bus: {num_bus} | num car: {num_car} | num truck: {num_truck}")
+                if num_bus>=max_num_bus and num_car>=max_num_car and num_truck>=max_num_truck: #40, 500, 180
+                    print(num_bus)
+                    print(num_car)
+                    print(num_truck)
+                    print("ENOUGH is ENOUGH, enough car, bus and trucks")
+                    break
                 #k = 31 #56 #31 #66, 31
                 #k = 44
                 _, _, _ ,_ , _, obj_properties = dataset.__getitem__(k)
@@ -111,12 +132,19 @@ if __name__=="__main__":
                     gamma = obj_gamma_list[i]
                     center3D = obj_centers_list[i]
                     box = obj_boxes_list[i]
+
+                    if name=="bus" and num_bus>=max_num_bus:
+                        continue
+                    elif name=="car" and num_car>=max_num_car:
+                        continue
+                    elif name=="truck" and num_truck>=max_num_truck:
+                        continue
                     
                     # print(name)
                     # print(len(points))
                     # time.sleep(3)
 
-                    is_good_completion = ((len(points) >= 500) or (name=="car" and len(points)>=200))
+                    is_good_completion = ((len(points) >= 1000) or (name=="car" and len(points)>=600)) #500, 200
 
                     front, side, vert = dataset.box_length_stats["front"], dataset.box_length_stats["side"], dataset.box_length_stats["vertical"]
                     print(f"---front={front[-1]}, side={side[-1]}, vertical={vert[-1]}")
@@ -277,6 +305,7 @@ if __name__=="__main__":
                         #     open3d.visualization.draw_geometries([pcd, car_vis_pos]) 
 
                         # print("visualize normalized")
+                        # print(f"num points: {len(points_normalized)}")
                         # # visualized normalized points
                         # pcd = open3d.geometry.PointCloud()
                         # pcd.points = open3d.utility.Vector3dVector(np.array(points_normalized))

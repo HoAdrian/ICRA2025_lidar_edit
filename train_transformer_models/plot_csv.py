@@ -7,7 +7,7 @@ this is used to track the progress of training. run this from the current direct
 '''
 
 # model = "vqvae"
-model = "maskgit"
+model = "intensity"
 
 plot_path = "../figures"
 file_path = f"../figures/{model}_trans/train_val_accuracy.csv"

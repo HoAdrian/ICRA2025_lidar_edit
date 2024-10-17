@@ -38,6 +38,7 @@ if __name__=="__main__":
     parser.add_argument('--dense', type=int, help="whether to use dense point cloud from point cloud completion")
     parser.add_argument('--maskgit_path', type=str, help="path to the trained maskGIT's weights of a specific epoch")
     parser.add_argument('--vqvae_path', type=str, help="path to the trained vqvae's weights of a specific epoch")
+    parser.add_argument('--intensity_vqvae_path', type=str, help="path to the trained intensity vqvae's weights of a specific epoch")
     parser.add_argument('--save_lidar_path', type=str, help="path to the root to save the dictionary and lidar point clouds, must be a full path")
     parser.add_argument('--split', type=str, help="train/val")
     args = parser.parse_args()
@@ -88,6 +89,22 @@ if __name__=="__main__":
     ).to(device)
     vqvae.load_state_dict(torch.load(args.vqvae_path)["model_state_dict"])
 
+    intensity_vqvae = VQVAETrans(
+        img_size=voxelizer.grid_size[0:2],
+        in_chans=voxelizer.grid_size[2],
+        patch_size=patch_size,
+        window_size=window_size,
+        patch_embed_dim=patch_embed_dim,
+        num_heads=num_heads,
+        depth=depth,
+        codebook_dim=codebook_dim,
+        num_code=num_code,
+        beta=beta,
+        device=device,
+        dead_limit=dead_limit
+    ).to(device)
+    intensity_vqvae.load_state_dict(torch.load(args.intensity_vqvae_path)["model_state_dict"])
+
     maskgit_config = config.maskgit_trans_config
     mask_git = MaskGIT(vqvae=vqvae, voxelizer=voxelizer, hidden_dim=maskgit_config["hidden_dim"], depth=maskgit_config["depth"], num_heads=maskgit_config["num_heads"]).to(device)
     mask_git.load_state_dict(torch.load(args.maskgit_path)["model_state_dict"])
@@ -109,8 +126,6 @@ if __name__=="__main__":
     else:
         raise Exception("invalid split argument")
     samples = np.arange(len(dataset))
-    # num_objs_insert = 5
-    # available_objs = ["car", "truck"] #["car"]
 
 
     torch.cuda.empty_cache()
@@ -155,8 +170,12 @@ if __name__=="__main__":
         allocentric_dict[name][12] = np.array(allocentric_dict[name][12])
 
     start_time = timeit.default_timer()
+    ####### TODO: continue collecting
     #samples = samples[500:] # at 247| 4593| start from 2400 to 3000
     #samples = [6016,6017,6018]#samples[2400:3000]
+    #samples = samples[2200:]
+    #samples = samples[2600:]
+    #samples = samples[52:]
     for k in samples:
         #k = 240
         ### nice scene
@@ -169,17 +188,30 @@ if __name__=="__main__":
         #k = 79
         #k = 16 #14 collide with inpainted points
         #k = 7
-        k = 17
+        #k = 17
+        #k = 44 #bus, truck, car
+        #k = 52 # weird bus
         print(f"NOTE: =============== currently at Sample {k} =========================")
         return_from_data = dataset.__getitem__(k)
         if return_from_data is None:
             continue
+
+        count_orig_vehicle = count_vehicle_name_in_box_list(dataset.nonempty_boxes, vehicle_names_dict=vehicle_names)
+        count_car, count_bus, count_truck = count_orig_vehicle["car"], count_orig_vehicle["bus"], count_orig_vehicle["truck"]
+        logging.info("counting ...??? ", count_orig_vehicle)
+        # if count_bus==0:# and count_truck==0:
+        #     print("SKIP NO BUS and TRUCK SAMPLES... ")
+        #     continue
+
+
         data_tuple = collate_fn_BEV([return_from_data])
         has, no, voxel_label, BEV_label = data_tuple
         grid_ind_has, return_points_has, voxel_centers_has, voxels_occupancy_has = has
         grid_ind_no, return_points_no, voxel_centers_no, voxels_occupancy_no = no
         voxels_mask = voxel_label.to(device) #(B, H, W, in_chans)
         BEV_mask = BEV_label.to(device) #(B,H,W)
+
+        
 
         #### remove existing foreground objects first
         voxels_occupancy_has = voxels_occupancy_has.permute(0,3,1,2).to(device).float() #(B, in_chans, H, W)
@@ -200,26 +232,21 @@ if __name__=="__main__":
             else:
                 raise Exception("Invalid method idx")
         
-        voxels_occupancy_list = [voxels_occupancy_has[0].permute(1,2,0)] + [gen_voxels[0].permute(1,2,0) for gen_voxels in gen_binary_voxels_list]
-        points_list = [voxels2points(voxelizer, voxels_occupancy_has, mode=mode)[0]] + [voxels2points(voxelizer, gen_voxels, mode=mode)[0] for gen_voxels in gen_binary_voxels_list]
-        names_list = ["original"] + [f"{name}" for name in method_names]
-        voxels_occupancy_no_copy = torch.clone(voxels_occupancy_no)
-        voxels_occupancy_no_copy[voxels_mask.permute(0,3,1,2)==1] = 0
-        voxels_occupancy_list = [voxels_occupancy_has[0].permute(1,2,0), voxels_occupancy_no_copy[0].permute(1,2,0)] + [gen_voxels[0].permute(1,2,0) for gen_voxels in gen_binary_voxels_list]
-        points_list = [voxels2points(voxelizer, voxels_occupancy_has, mode=mode)[0], voxels2points(voxelizer, voxels_occupancy_no_copy, mode=mode)[0]] + [voxels2points(voxelizer, gen_voxels, mode=mode)[0] for gen_voxels in gen_binary_voxels_list]
-        names_list = ["original", "object removed"] + [f"{name}" for name in method_names]
-        if True:
-            visualize_generated_pointclouds(voxelizer, voxels_occupancy_list, points_list, names_list, voxels_mask, image_path="./actor_insertion/vis_no_background_baselines", image_name=f"{k}_sample")
+        # voxels_occupancy_list = [voxels_occupancy_has[0].permute(1,2,0)] + [gen_voxels[0].permute(1,2,0) for gen_voxels in gen_binary_voxels_list]
+        # points_list = [voxels2points(voxelizer, voxels_occupancy_has, mode=mode)[0]] + [voxels2points(voxelizer, gen_voxels, mode=mode)[0] for gen_voxels in gen_binary_voxels_list]
+        # names_list = ["original"] + [f"{name}" for name in method_names]
+        # voxels_occupancy_no_copy = torch.clone(voxels_occupancy_no)
+        # voxels_occupancy_no_copy[voxels_mask.permute(0,3,1,2)==1] = 0
+        # voxels_occupancy_list = [voxels_occupancy_has[0].permute(1,2,0), voxels_occupancy_no_copy[0].permute(1,2,0)] + [gen_voxels[0].permute(1,2,0) for gen_voxels in gen_binary_voxels_list]
+        # points_list = [voxels2points(voxelizer, voxels_occupancy_has, mode=mode)[0], voxels2points(voxelizer, voxels_occupancy_no_copy, mode=mode)[0]] + [voxels2points(voxelizer, gen_voxels, mode=mode)[0] for gen_voxels in gen_binary_voxels_list]
+        # names_list = ["original", "object removed"] + [f"{name}" for name in method_names]
+        # if True:
+        #     visualize_generated_pointclouds(voxelizer, voxels_occupancy_list, points_list, names_list, voxels_mask, image_path="./actor_insertion/vis_no_background_baselines", image_name=f"{k}_sample")
 
         
         ###### insert vehicles to the new occupancy grids with foreground points removed by different methods
-        count_orig_vehicle = count_vehicle_name_in_box_list(dataset.nonempty_boxes, vehicle_names_dict=vehicle_names)
-        count_car, count_bus, count_truck = count_orig_vehicle["car"], count_orig_vehicle["bus"], count_orig_vehicle["truck"]
-        logging.info("counting ...??? ", count_orig_vehicle)
-        # insert_vehicle_names = ["bus" for _ in range(count_bus)] + ["truck" for _ in range(count_truck)] + ["car" for _ in range(count_car)]
         insert_vehicle_names = None
-        # insert_vehicle_names = [available_objs[np.random.choice(len(available_objs), p=np.array([0.8, 0.2]))] for _ in range(num_objs_insert)]
-        # print(f"##### insert vehicle name: {insert_vehicle_names}")
+
         for method_idx, gen_grid in enumerate(gen_binary_voxels_list):
             logging.info(f"============ sample {k}: inserting to {method_names[method_idx]} occupancy grid")
             voxels_occupancy_has = gen_grid.permute(0,2,3,1)
@@ -297,38 +324,38 @@ if __name__=="__main__":
             # mat.point_size = 2.0
             # open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
 
-            print("VISUALIZING original POINT CLOUD HERE.......") 
-            pcd = open3d.geometry.PointCloud()
-            print("dataset original points: ", dataset.points_xyz.shape)
-            print("dataset original points: ", type(dataset.points_xyz))
-            print("dataset original points: ", dataset.points_xyz.dtype)
-            pcd.points = open3d.utility.Vector3dVector(np.array(dataset.points_xyz[:,:3]))
-            pcd_colors = np.tile(np.array([[0,0,1]]), (len(dataset.points_xyz), 1))
-            pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
+            # print("VISUALIZING original POINT CLOUD HERE.......") 
+            # pcd = open3d.geometry.PointCloud()
+            # print("dataset original points: ", dataset.points_xyz.shape)
+            # print("dataset original points: ", type(dataset.points_xyz))
+            # print("dataset original points: ", dataset.points_xyz.dtype)
+            # pcd.points = open3d.utility.Vector3dVector(np.array(dataset.points_xyz[:,:3]))
+            # pcd_colors = np.tile(np.array([[0,0,1]]), (len(dataset.points_xyz), 1))
+            # pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
             
-            ground_pcd = open3d.geometry.PointCloud()
-            grd_points = dataset.point_cloud_dataset.ground_points[:,:3][:,:3] #points_list[0] #
-            ground_pcd.points = open3d.utility.Vector3dVector(grd_points)
-            ground_pcd_colors = np.tile(np.array([[0,1,0]]), (len(grd_points), 1))
-            ground_pcd.colors = open3d.utility.Vector3dVector(ground_pcd_colors)
+            # ground_pcd = open3d.geometry.PointCloud()
+            # grd_points = dataset.point_cloud_dataset.ground_points[:,:3][:,:3] #points_list[0] #
+            # ground_pcd.points = open3d.utility.Vector3dVector(grd_points)
+            # ground_pcd_colors = np.tile(np.array([[0,1,0]]), (len(grd_points), 1))
+            # ground_pcd.colors = open3d.utility.Vector3dVector(ground_pcd_colors)
 
-            lines = [[0, 1], [1, 2], [2, 3], [0, 3],
-            [4, 5], [5, 6], [6, 7], [4, 7],
-            [0, 4], [1, 5], [2, 6], [3, 7]]
-            visboxes = []
-            for box in original_vehicle_boxes:
-                line_set = open3d.geometry.LineSet()
-                line_set.points = open3d.utility.Vector3dVector(box.corners().T)
-                line_set.lines = open3d.utility.Vector2iVector(lines)
-                if vehicle_names[box.name]=="car":
-                    colors = [[1, 0, 0] for _ in range(len(lines))]
-                elif vehicle_names[box.name]=="truck":
-                    colors = [[0, 1, 0] for _ in range(len(lines))]
-                elif vehicle_names[box.name]=="bus":
-                    colors = [[0, 0, 1] for _ in range(len(lines))]
-                line_set.colors = open3d.utility.Vector3dVector(colors)
-                visboxes.append(line_set)
-            open3d.visualization.draw_geometries([pcd, ground_pcd]+visboxes)
+            # lines = [[0, 1], [1, 2], [2, 3], [0, 3],
+            # [4, 5], [5, 6], [6, 7], [4, 7],
+            # [0, 4], [1, 5], [2, 6], [3, 7]]
+            # visboxes = []
+            # for box in original_vehicle_boxes:
+            #     line_set = open3d.geometry.LineSet()
+            #     line_set.points = open3d.utility.Vector3dVector(box.corners().T)
+            #     line_set.lines = open3d.utility.Vector2iVector(lines)
+            #     if vehicle_names[box.name]=="car":
+            #         colors = [[1, 0, 0] for _ in range(len(lines))]
+            #     elif vehicle_names[box.name]=="truck":
+            #         colors = [[0, 1, 0] for _ in range(len(lines))]
+            #     elif vehicle_names[box.name]=="bus":
+            #         colors = [[0, 0, 1] for _ in range(len(lines))]
+            #     line_set.colors = open3d.utility.Vector3dVector(colors)
+            #     visboxes.append(line_set)
+            # open3d.visualization.draw_geometries([pcd, ground_pcd]+visboxes)
 
             # mat = open3d.visualization.rendering.MaterialRecord()
             # mat.shader = 'defaultUnlit'

@@ -431,18 +431,19 @@ def visualize_generated_pointclouds(voxelizer, voxels_occupancy_list, points_lis
             point_intensity[point_intensity_mask] = 1
             print("**************** any points in mask region? ", (np.sum(point_intensity)))
 
-        pcd = open3d.geometry.PointCloud()
-        pcd.points = open3d.utility.Vector3dVector(np.array(points))
-        pcd_colors = np.tile(np.array([[0,0,1]]), (len(points), 1))
-        pcd_colors[point_intensity==1, 0] = 1
-        pcd_colors[point_intensity==1, 2] = 0
-        pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
-    
-        mat = open3d.visualization.rendering.MaterialRecord()
-        mat.shader = 'defaultUnlit'
-        mat.point_size = 3.0
+        if j==2:
+            pcd = open3d.geometry.PointCloud()
+            pcd.points = open3d.utility.Vector3dVector(np.array(points))
+            pcd_colors = np.tile(np.array([[0,0,1]]), (len(points), 1))
+            pcd_colors[point_intensity==1, 0] = 1
+            pcd_colors[point_intensity==1, 2] = 0
+            pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
+        
+            mat = open3d.visualization.rendering.MaterialRecord()
+            mat.shader = 'defaultUnlit'
+            mat.point_size = 3.0
 
-        open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
+            open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
         ### rotating point cloud to get nice video, change j as you need ###
         # if j==0:
         #     cam_right_vec = np.array([1.0, 0.0, 0.0])
