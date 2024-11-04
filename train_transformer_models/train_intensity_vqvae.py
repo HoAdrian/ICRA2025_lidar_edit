@@ -50,16 +50,16 @@ def train(dataloader, model, device, optimizer, epoch):
 
         voxels_occupancy_has = voxels_occupancy_has.permute(0,3,1,2).to(device).float() #(B, in_chans, H, W)
         intensity_grid = intensity_grid.permute(0,3,1,2).to(device).float() #(B, in_chans, H, W)
-        loss_has, rec_x_has, rec_x_logit_has, perplexity_has, min_encodings_has, min_encoding_indices_has = vqvae.compute_intensity_loss(voxels_occupancy_has, intensity_grid)
+        loss_has, rec_x_has = vqvae.compute_intensity_loss(voxels_occupancy_has, intensity_grid)
         loss = loss_has
 
         # compute confusion matrix
-        _, _, TPs_, FPs_, FNs_, TNs_ \
-        =confusion_matrix_wrapper((intensity_grid>0).long().reshape(-1).detach().cpu().numpy(), (rec_x_has>0).long().reshape(-1).detach().cpu().numpy(), labels=np.arange(num_classes))
-        TPs += TPs_
-        FPs += FPs_
-        FNs += FNs_
-        TNs += TNs_
+        # _, _, TPs_, FPs_, FNs_, TNs_ \
+        # =confusion_matrix_wrapper((intensity_grid>0).long().reshape(-1).detach().cpu().numpy(), (rec_x_has>0).long().reshape(-1).detach().cpu().numpy(), labels=np.arange(num_classes))
+        # TPs += TPs_
+        # FPs += FPs_
+        # FNs += FNs_
+        # TNs += TNs_
 
         total_loss += loss.item()
 
@@ -72,8 +72,6 @@ def train(dataloader, model, device, optimizer, epoch):
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
-
-        vqvae.update_reservoir_codebook(min_encodings_has, min_encoding_indices_has)
 
         if batch_idx % 10 == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
@@ -94,6 +92,7 @@ def train(dataloader, model, device, optimizer, epoch):
 
     return avg_loss, TPs, FPs, FNs, TNs, avg_auprc, code_util, code_uniformity, ratio
 
+import time
 def test(dataloader, model, device, epoch):
     size = len(dataloader.dataset)
     model.train()
@@ -104,6 +103,7 @@ def test(dataloader, model, device, epoch):
     FPs = np.zeros(num_classes,).astype(np.float64)
     FNs = np.zeros(num_classes,).astype(np.float64)
     TNs = np.zeros(num_classes,).astype(np.float64)
+    avg_l2_error_over_batch = 0
     with torch.no_grad():
         for batch_idx, data_tuple in enumerate(dataloader):
             num_batch += 1
@@ -124,18 +124,23 @@ def test(dataloader, model, device, epoch):
 
             voxels_occupancy_has = voxels_occupancy_has.permute(0,3,1,2).to(device).float() #(B, in_chans, H, W)
             intensity_grid = intensity_grid.permute(0,3,1,2).to(device).float() #(B, in_chans, H, W)
-            loss_has, rec_x_has, rec_x_logit_has, perplexity_has, min_encodings_has, min_encoding_indices_has = vqvae.compute_intensity_loss(voxels_occupancy_has, intensity_grid)
+            loss_has, rec_x_logit_has = vqvae.compute_intensity_loss(voxels_occupancy_has, intensity_grid)
             loss = loss_has
+
+            masking = voxels_occupancy_has!=0#voxels_occupancy_has!=0
+            avg_L2_error = torch.sqrt(torch.sum(((intensity_grid[masking] - rec_x_logit_has[masking]))**2))/torch.sum(masking)
+            print(f"$$$$$$$$$$$$$$$ avg l2 error: {avg_L2_error}")
+            avg_l2_error_over_batch+=avg_L2_error
 
             total_loss += loss.item()
 
             # compute confusion matrix
-            _, _, TPs_, FPs_, FNs_, TNs_ \
-            =confusion_matrix_wrapper((intensity_grid>0).long().reshape(-1).detach().cpu().numpy(), (rec_x_has>0).long().reshape(-1).detach().cpu().numpy(), labels=np.arange(num_classes))
-            TPs += TPs_
-            FPs += FPs_
-            FNs += FNs_
-            TNs += TNs_
+            # _, _, TPs_, FPs_, FNs_, TNs_ \
+            # =confusion_matrix_wrapper((intensity_grid>0).long().reshape(-1).detach().cpu().numpy(), (rec_x_logit_has>0).long().reshape(-1).detach().cpu().numpy(), labels=np.arange(num_classes))
+            # TPs += TPs_
+            # FPs += FPs_
+            # FNs += FNs_
+            # TNs += TNs_
 
             # pred_probs = rec_x_logit_has.sigmoid().reshape(-1).detach().cpu().numpy()
             # true_labels = voxels_occupancy_has.reshape(-1).detach().cpu().numpy()
@@ -150,12 +155,14 @@ def test(dataloader, model, device, epoch):
             code_util, code_uniformity = vqvae.track_progress()
             # print("code_util:", code_util)
             # print("code_uniformity:", code_uniformity)
-            num_rec, num_gt = vqvae.occupancy_ratio((rec_x_has>0).long(), (intensity_grid>0).long())
+            num_rec, num_gt = vqvae.occupancy_ratio((rec_x_logit_has>0).long(), (intensity_grid>0).long())
             ratio = num_rec/num_gt
 
             
         avg_loss = total_loss/num_batch
         avg_auprc = total_auprc/num_batch
+        print(f"$$$$$$$$sss$$$$$$$ avg l2 error over batch: {avg_l2_error_over_batch/float(num_batch)}")
+        #time.sleep(10)
 
     return avg_loss, TPs, FPs, FNs, TNs, avg_auprc, code_util, code_uniformity, ratio
         
@@ -292,15 +299,15 @@ if __name__=="__main__":
         test_code_uniformity.append(code_uniformity_te)
         test_occ_ratio.append(ratio_te)
 
-        train_TPs[epoch, :] = TPs_tr
-        train_FPs[epoch, :] = FPs_tr
-        train_FNs[epoch, :] = FNs_tr
-        train_TNs[epoch, :] = TNs_tr
+        # train_TPs[epoch, :] = TPs_tr
+        # train_FPs[epoch, :] = FPs_tr
+        # train_FNs[epoch, :] = FNs_tr
+        # train_TNs[epoch, :] = TNs_tr
 
-        test_TPs[epoch, :] = TPs_te
-        test_FPs[epoch, :] = FPs_te
-        test_FNs[epoch, :] = FNs_te
-        test_TNs[epoch, :] = TNs_te
+        # test_TPs[epoch, :] = TPs_te
+        # test_FPs[epoch, :] = FPs_te
+        # test_FNs[epoch, :] = FNs_te
+        # test_TNs[epoch, :] = TNs_te
         
         if epoch%2==0:
             checkpoint = {
@@ -311,54 +318,55 @@ if __name__=="__main__":
                 }
             torch.save(checkpoint, os.path.join(args.weight_path, "epoch_" + str(epoch)))
 
+        # if epoch%2==0:
+        #     curr_epoch = start_epoch+len(train_losses)-1
+
+        #     accuracy_tr, precision_tr, recall_tr, f1_score_tr, specificity_tr, TPR_tr, FPR_tr = compute_perf_metrics(train_TPs[:epoch+1], train_FPs[:epoch+1], train_FNs[:epoch+1], train_TNs[:epoch+1])  
+        #     accuracy_te, precision_te, recall_te, f1_score_te, specificity_te, TPR_te, FPR_te = compute_perf_metrics(test_TPs[:epoch+1], test_FPs[:epoch+1], test_FNs[:epoch+1], test_TNs[:epoch+1])
+
+        #     print("metric for all classes at last iteration: ")
+        #     print(f"precision: {precision_te[-1, 1]}")
+        #     print(f"recall: {recall_te[-1, 1]}")
+        #     print(f"f1 score: {f1_score_te[-1, 1]}")
+        #     print(f"sepcificity: {specificity_te[-1, 1]}")
+        #     print(f"TPR: {TPR_te[-1, 1]}")
+        #     print(f"FPR: {FPR_te[-1, 1]}")
+
         if epoch%2==0:
             curr_epoch = start_epoch+len(train_losses)-1
-
-            accuracy_tr, precision_tr, recall_tr, f1_score_tr, specificity_tr, TPR_tr, FPR_tr = compute_perf_metrics(train_TPs[:epoch+1], train_FPs[:epoch+1], train_FNs[:epoch+1], train_TNs[:epoch+1])  
-            accuracy_te, precision_te, recall_te, f1_score_te, specificity_te, TPR_te, FPR_te = compute_perf_metrics(test_TPs[:epoch+1], test_FPs[:epoch+1], test_FNs[:epoch+1], test_TNs[:epoch+1])
-
-            print("metric for all classes at last iteration: ")
-            print(f"precision: {precision_te[-1, 1]}")
-            print(f"recall: {recall_te[-1, 1]}")
-            print(f"f1 score: {f1_score_te[-1, 1]}")
-            print(f"sepcificity: {specificity_te[-1, 1]}")
-            print(f"TPR: {TPR_te[-1, 1]}")
-            print(f"FPR: {FPR_te[-1, 1]}")
-
-        if epoch%2==0:
             print(f"So far, you used {(timeit.default_timer() - start_time):.2f} seconds" )
 
             rows = [[curr_epoch, train_losses[-1], test_losses[-1]]]
             write_csv_rows("./figures/intensity_vqvae/train_val_loss.csv", rows, overwrite=False)
 
-            rows = [[curr_epoch, accuracy_tr[-1,1], accuracy_te[-1,1]]]
-            write_csv_rows("./figures/intensity_vqvae/train_val_accuracy.csv", rows, overwrite=False)
+            # rows = [[curr_epoch, accuracy_tr[-1,1], accuracy_te[-1,1]]]
+            # write_csv_rows("./figures/intensity_vqvae/train_val_accuracy.csv", rows, overwrite=False)
 
-            rows = [[curr_epoch, precision_tr[-1,1], precision_te[-1,1]]]
-            write_csv_rows("./figures/intensity_vqvae/train_val_precision.csv", rows, overwrite=False)
+            # rows = [[curr_epoch, precision_tr[-1,1], precision_te[-1,1]]]
+            # write_csv_rows("./figures/intensity_vqvae/train_val_precision.csv", rows, overwrite=False)
 
-            rows = [[curr_epoch, recall_tr[-1,1], recall_te[-1,1]]]
-            write_csv_rows("./figures/intensity_vqvae/train_val_recall.csv", rows, overwrite=False)
+            # rows = [[curr_epoch, recall_tr[-1,1], recall_te[-1,1]]]
+            # write_csv_rows("./figures/intensity_vqvae/train_val_recall.csv", rows, overwrite=False)
 
-            rows = [[curr_epoch, f1_score_tr[-1,1], f1_score_te[-1,1]]]
-            write_csv_rows("./figures/intensity_vqvae/train_val_f1score.csv", rows, overwrite=False)
+            # rows = [[curr_epoch, f1_score_tr[-1,1], f1_score_te[-1,1]]]
+            # write_csv_rows("./figures/intensity_vqvae/train_val_f1score.csv", rows, overwrite=False)
 
-            rows = [[curr_epoch, specificity_tr[-1,1], specificity_te[-1,1]]]
-            write_csv_rows("./figures/intensity_vqvae/train_val_specificity.csv", rows, overwrite=False)
+            # rows = [[curr_epoch, specificity_tr[-1,1], specificity_te[-1,1]]]
+            # write_csv_rows("./figures/intensity_vqvae/train_val_specificity.csv", rows, overwrite=False)
 
-            rows = [[curr_epoch, TPR_tr[-1,1], TPR_te[-1,1]]]
-            write_csv_rows("./figures/intensity_vqvae/train_val_TPR.csv", rows, overwrite=False)
+            # rows = [[curr_epoch, TPR_tr[-1,1], TPR_te[-1,1]]]
+            # write_csv_rows("./figures/intensity_vqvae/train_val_TPR.csv", rows, overwrite=False)
 
-            rows = [[curr_epoch, FPR_tr[-1,1], FPR_te[-1,1]]]
-            write_csv_rows("./figures/intensity_vqvae/train_val_FPR.csv", rows, overwrite=False)
+            # rows = [[curr_epoch, FPR_tr[-1,1], FPR_te[-1,1]]]
+            # write_csv_rows("./figures/intensity_vqvae/train_val_FPR.csv", rows, overwrite=False)
 
-            rows = [[curr_epoch, train_code_util[-1], test_code_util[-1]]]
-            write_csv_rows("./figures/intensity_vqvae/train_val_code_alive.csv", rows, overwrite=False)
+            # rows = [[curr_epoch, train_code_util[-1], test_code_util[-1]]]
+            # write_csv_rows("./figures/intensity_vqvae/train_val_code_alive.csv", rows, overwrite=False)
 
-            rows = [[curr_epoch, train_code_uniformity[-1], test_code_uniformity[-1]]]
-            write_csv_rows("./figures/intensity_vqvae/train_val_code_uniformity.csv", rows, overwrite=False)
+            # rows = [[curr_epoch, train_code_uniformity[-1], test_code_uniformity[-1]]]
+            # write_csv_rows("./figures/intensity_vqvae/train_val_code_uniformity.csv", rows, overwrite=False)
 
-            rows = [[curr_epoch, train_occ_ratio[-1], test_occ_ratio[-1]]]
-            write_csv_rows("./figures/intensity_vqvae/train_val_occ_ratio.csv", rows, overwrite=False)
+            # rows = [[curr_epoch, train_occ_ratio[-1], test_occ_ratio[-1]]]
+            # write_csv_rows("./figures/intensity_vqvae/train_val_occ_ratio.csv", rows, overwrite=False)
 
     

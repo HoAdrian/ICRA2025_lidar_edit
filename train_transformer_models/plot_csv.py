@@ -7,13 +7,13 @@ this is used to track the progress of training. run this from the current direct
 '''
 
 # model = "vqvae"
-model = "intensity"
+model = "intensity_unet"
 
 plot_path = "../figures"
-file_path = f"../figures/{model}_trans/train_val_accuracy.csv"
-plot_xy_from_csv(file_path, title="trainval_accuracy", x_label="epochs", y_label="accuracy", name=f"{model}_trainval_accuracy", plot_path=plot_path, vis=False)
+# file_path = f"../figures/{model}/train_val_accuracy.csv"
+# plot_xy_from_csv(file_path, title="trainval_accuracy", x_label="epochs", y_label="accuracy", name=f"{model}_trainval_accuracy", plot_path=plot_path, vis=False)
 
-file_path = f"../figures/{model}_trans/train_val_loss.csv"
+file_path = f"../figures/{model}/train_val_loss.csv"
 plot_xy_from_csv(file_path, title="trainval_loss", x_label="epochs", y_label="loss", name=f"{model}_trainval_loss", plot_path=plot_path, vis=False)
 
 # file_path = f"../figures/{model}_trans/train_val_precision.csv"

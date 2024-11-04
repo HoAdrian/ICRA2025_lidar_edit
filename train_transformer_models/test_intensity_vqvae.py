@@ -78,11 +78,13 @@ if __name__=="__main__":
     checkpoint = torch.load(args.vqvae_path)
     vqvae.load_state_dict(checkpoint["model_state_dict"])
 
-    num_vis = 10
+    num_vis = 100
     dataset = val_dataset
-    samples = np.random.choice(len(dataset), num_vis)
+    samples = np.random.choice(len(dataset), num_vis) #np.arange(len(dataset))#np.random.choice(len(dataset), num_vis)
+    l2_errors = []
     for k in samples:
         k = 66 #31 #44 #56 #31 #56 #31 #66, 31
+        print(f"++++++++++|||||| sample index: {k}")
         data_tuple = collate_fn_BEV_intensity([dataset.__getitem__(k)])
         has, no, voxel_label, BEV_label, intensity_grid = data_tuple
         grid_ind_has, return_points_has, voxel_centers_has, voxels_occupancy_has = has
@@ -94,14 +96,18 @@ if __name__=="__main__":
         voxels_occupancy_has = voxels_occupancy_has.permute(0,3,1,2).to(device).float() #(B, in_chans, H, W)
         voxels_occupancy_no = voxels_occupancy_no.permute(0,3,1,2).to(device).float() #(B, in_chans, H, W)
         intensity_grid = intensity_grid.permute(0,3,1,2).to(device).float() #(B, in_chans, H, W)
-        loss_has, rec_x_has, rec_x_logit_has, perplexity_has, min_encodings_has, min_encoding_indices_has = vqvae.compute_intensity_loss(voxels_occupancy_has, intensity_grid)
-
-        code_usage_count = torch.sum(min_encodings_has, dim=0) #(num_code, )
-        print(f"=== code usage percentage: {torch.sum(code_usage_count!=0)/len(code_usage_count)*100} %")
+        # loss_has, rec_x_has, rec_x_logit_has, perplexity_has, min_encodings_has, min_encoding_indices_has = vqvae.compute_intensity_loss(voxels_occupancy_has, intensity_grid)
+        loss_has, rec_x_logit_has = vqvae.compute_intensity_loss(voxels_occupancy_has, intensity_grid)
 
         rec_x_logit_has = torch.clip(rec_x_logit_has, min=0.0, max=255.0)
-        avg_L2_error = torch.sqrt(torch.sum(((intensity_grid[voxels_occupancy_has!=0] - rec_x_logit_has[voxels_occupancy_has!=0]))**2))/torch.sum(voxels_occupancy_has!=0)
+        masking = torch.logical_and(voxels_occupancy_has!=0, intensity_grid!=0)
+        avg_L2_error = torch.sqrt(torch.sum(((intensity_grid[masking] - rec_x_logit_has[masking]))**2)/torch.sum(masking))
+        print(f"?????? pred: {rec_x_logit_has[masking][:100]}")
+        print(f"?????? gt: {intensity_grid[masking][:100]}")
         print("########## L2 error: ", avg_L2_error)
+        print("_______ avg pred vs gt intensity: ", torch.mean(rec_x_logit_has[masking]), torch.mean(intensity_grid[masking]))
+        print("_______ maxmin pred intensity: ", torch.max(rec_x_logit_has[masking]), torch.min(rec_x_logit_has[masking]))
+        l2_errors.append(avg_L2_error.item())
 
         ### visualize original point cloud
         print(f"++++ visualizing ORIGINAL POINT CLOUD")
@@ -109,7 +115,7 @@ if __name__=="__main__":
         print(original_points.shape)
         pcd = open3d.geometry.PointCloud()
         pcd.points = open3d.utility.Vector3dVector(np.array(original_points[:,:3]))
-        pcd_colors = np.tile(np.array([[0,1,0]]), (len(original_points), 1))*original_points[:,3:4]/np.max(original_points[:,3:4])
+        pcd_colors = np.tile(np.array([[0,1,0]]), (len(original_points), 1))*original_points[:,3:4]/255.0#np.max(original_points[:,3:4])
         pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
         mat = open3d.visualization.rendering.MaterialRecord()
         mat.shader = 'defaultUnlit'
@@ -117,13 +123,7 @@ if __name__=="__main__":
         open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
         #####################################
         
-        # vox_size = 1
-        # xlim = [-80, 80]
-        # ylim = [-80, 80]
-        # voxelizer.vis_BEV_binary_voxel(voxels_occupancy_has[0].permute(1,2,0), points_xyz=None, intensity=None, vis=False, path=f"{args.figures_path}", name=f"{k}_has_occupancy", vox_size=vox_size, xlim=xlim, ylim=ylim, only_points=False, mode=mode)
-        # voxelizer.vis_BEV_binary_voxel(rec_x_has[0].permute(1,2,0), points_xyz=None, intensity=None, vis=False, path=f"{args.figures_path}", name=f"{k}_rec_has_occupancy", vox_size=vox_size, xlim=xlim, ylim=ylim, only_points=False, mode=mode)
         
-    
 
         points_xyz_has = voxels2points(voxelizer, voxels_occupancy_has, mode=mode)
         print(f"#### points_xyz_original: ", len(points_xyz_has[0]))
@@ -165,3 +165,15 @@ if __name__=="__main__":
             open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
                 
             #voxelizer.vis_BEV_binary_voxel(BEV_mask[0].unsqueeze(-1), points_xyz=points, intensity=point_intensity, vis=False, path=f"{args.figures_path}", name=f"{k}_{names_list[j]}_points_masked", vox_size=vox_size, xlim=xlim, ylim=ylim, only_points=True)
+
+    l2_erros = np.array(l2_errors)
+    avg_l2_error = np.mean(l2_errors)
+    max_error = np.max(l2_errors)
+    min_error = np.min(l2_errors)
+    std = np.std(l2_errors)
+
+    # print(f"l2 errors: {l2_errors}")
+    print(f"avg_l2_erros: ", avg_l2_error)
+    print(f"max_l2_erros: ", max_error)
+    print(f"min_l2_erros: ", min_error)
+    print(f"std: ", std)

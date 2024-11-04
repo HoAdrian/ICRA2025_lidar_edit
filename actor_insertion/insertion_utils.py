@@ -57,7 +57,7 @@ def insert_vehicle_pc(vehicle_pc, bbox, insert_xyz_pos, rotation_angle, voxels_o
     - inpainted_background: a point cloud where each point is the new points inserted by mask git
 
     return:
-    new_scene_points_xyz, new_bbox, insert_xyz_pos, vehicle_pc
+    new_scene_points_xyz, new_bbox, insert_xyz_pos, vehicle_pc. If insertion is unsuccessful, return None and the failure status
     '''
    
     # pass object variables by copy
@@ -92,18 +92,9 @@ def insert_vehicle_pc(vehicle_pc, bbox, insert_xyz_pos, rotation_angle, voxels_o
     #start_time = timeit.default_timer()
     if not use_ground_seg:
         raise Exception("YOU MUST USE GROUND SEGMENTATION")
-        # print("^^^^^^ just using nearest occupied voxels to determine z")
-        # nearest_polar_voxels_pos = voxelizer.get_nearest_occupied_BEV_voxel(voxels_occupancy_has[0].cpu().detach().numpy(), cart2polar(insert_xyz_pos[np.newaxis,:], mode=mode), mode=mode) #(M,3)
     else:
         print(f"##### USING GROUND SEGMENTATION to determine z........")
         ground_points = dataset.point_cloud_dataset.ground_points[:,:3] #(G,3)
-        # ground_idxs = voxelizer.get_grid_ind(cart2polar(ground_points, mode=mode)) #(G,3)
-        # ground_occupancy = np.zeros_like(voxels_occupancy_has[0].cpu().detach().numpy()).astype(np.float64)
-        # print("ground occupancy shape: ", ground_occupancy.shape)
-        # ground_occupancy[ground_idxs[:,0], ground_idxs[:,1], ground_idxs[:,2]] = 1.0
-        # ground_points = voxels2points(voxelizer, torch.tensor(ground_occupancy).unsqueeze(0).permute(0,3,1,2), mode=mode)[0]
-        # dataset.point_cloud_dataset.ground_points = ground_points
-        #nearest_polar_voxels_pos = voxelizer.get_nearest_ground_BEV_voxel(ground_occupancy, cart2polar(insert_xyz_pos[np.newaxis,:], mode=mode), mode)
         nearest_polar_voxels_pos = voxelizer.get_nearest_ground_BEV_pos(ground_points, cart2polar(insert_xyz_pos[np.newaxis,:], mode=mode), mode)
     #mid_time = timeit.default_timer()
         
@@ -115,8 +106,6 @@ def insert_vehicle_pc(vehicle_pc, bbox, insert_xyz_pos, rotation_angle, voxels_o
     height_diff = nearest_min_z - vehicle_min_z
     vehicle_pc[:,2] += height_diff
     insert_xyz_pos[2]=height_diff
-
-    #insert_xyz_pos[2]-=0.1#1.0
 
     ############ transform the bounding box accordingly
     new_bbox.translate(-bbox.center)
@@ -130,19 +119,20 @@ def insert_vehicle_pc(vehicle_pc, bbox, insert_xyz_pos, rotation_angle, voxels_o
     #         avg_ground_points_z = np.max(ground_points[ground_in_new_box_mask], axis=0)[2]
     #     else:
     #         avg_ground_points_z = np.max(ground_points, axis=0)[2]
-    #     margin = 0.1
+    #     margin = 1.0 #0.1
     #     if np.sum(points_in_box(new_bbox, inpainted_background[inpainted_background[:,2]>avg_ground_points_z+margin].T, wlh_factor = 1.0))>0:
-    #         return None
+    #         #vis_point_cloud_with_bboxes(inpainted_background, [new_bbox])
+    #         return None, 0
 
     #### project to spherical grid, apply occlusion and convert back to point cloud
     polar_vehicle = cart2polar(vehicle_pc, mode=mode)     
-    #obj_region = get_obj_regions([new_bbox], mode=mode)[0]
-    #old_occupancy = voxels_occupancy_has[0].cpu().detach().numpy()
-    #new_occupancy[voxelizer.create_mask_by_occlusion(obj_region, use_z=True)==1] = 0
-
+    
     #### ensure the vehicle is within bound
-    if not np.sum(voxelizer.filter_in_bound_points(polar_vehicle))==len(polar_vehicle):
-        return None
+    # if not np.sum(voxelizer.filter_in_bound_points(polar_vehicle))==len(polar_vehicle):
+    if np.sum(voxelizer.filter_in_bound_points(polar_vehicle))<=len(polar_vehicle)/2:
+        # visualize_pointcloud(vehicle_pc[voxelizer.filter_in_bound_points(polar_vehicle)], None)
+        print(np.rad2deg(polar_vehicle[np.logical_not(voxelizer.filter_in_bound_points(polar_vehicle))][:,1:3]))
+        return None, 1
     
     if use_dense:
         new_occupancy = voxelizer.voxelize_and_occlude(voxels_occupancy_has[0].cpu().detach().numpy(), polar_vehicle, insert_only=False)
@@ -185,7 +175,7 @@ def is_overlap_opencv(box1, box2):
 
 def sample_valid_insert_pos(name, current_viewing_angle, dataset, insert_box, other_boxes):
     '''
-    find the pos to insert the box such that it is not colliding with other boxes and it does not contain any other background points except drivable surface
+    find a random pos to insert the box such that it is not colliding with other boxes and it does not contain any other background points (may collide with inpainted background, we don't know for now) except drivable surface
     - name: name of the vehicle being inserted: (car, bus or truck)
     - current_viewing_angle: the viewing angle of the vehicle's bounding box
     - dataset: PolarDataset
@@ -203,7 +193,6 @@ def sample_valid_insert_pos(name, current_viewing_angle, dataset, insert_box, ot
     other_boxes = [(copy.deepcopy(other_box).corners().T[[0,1,5,4], :2]).astype(np.float32) for other_box in other_boxes]
     target_idx = -1
     ### pick a random allocentric angle offset
-    #rand_alpha=np.random.uniform(low=0.0, high=2*np.pi)
     alphas = np.linspace(start=0.0, stop=2*np.pi, num=20)
     target_rand_alpha = 0
     # remember to shuffle
@@ -251,7 +240,6 @@ def sample_valid_insert_pos(name, current_viewing_angle, dataset, insert_box, ot
         
 
     insert_xyz_pos = sparse_ground_points[target_idx]
-    #dataset.point_cloud_dataset.sparse_ground_points = dataset.point_cloud_dataset.sparse_ground_points[np.arange(len(sparse_ground_points))!=target_idx] #remove the random ground points
     print(f"+++++ insert_xyz_pos: {insert_xyz_pos}")
 
     return insert_xyz_pos, target_rand_alpha
@@ -261,7 +249,7 @@ import timeit
 
 def angles_from_box(box):
     '''
-    Get the viewing angle and allocentric angle of the box
+    Get the viewing angle, allocentric angle and the center coordinates of the box
     '''
     corners = box.corners()
     center2D = box.center[:2]
@@ -285,9 +273,12 @@ def angles_from_box(box):
 
 from scipy.spatial import KDTree
 
-def insertion_vehicles_driver(inpainted_points_masked, inpainted_points, allocentric_dict, voxels_occupancy_has, names, dataset, voxelizer, token2sample_dict, args, save_lidar_path, mode="spherical"):
+def insertion_vehicles_driver(intensity_model, inpainted_points_masked, inpainted_points, allocentric_dict, voxels_occupancy_has, names, dataset, voxelizer, token2sample_dict, args, save_lidar_path, mode="spherical"):
     '''
     Driver method of inserting vehicles at completely random positions
+    - intensity_model: the model that predicts intensity of the generated point cloud with vehicles inserted
+    - inpainted_points_masked: inpainted points in the masked area
+    - inpainted points: the resultant point cloud after background inpainting
     - allocentric dict: contains all information of the completed point clouds
     - voxels_occupancy_has: (1, #r, #theta, #z), occupancy grid of the scene
     #- names: list of sampled vehicle names
@@ -322,13 +313,16 @@ def insertion_vehicles_driver(inpainted_points_masked, inpainted_points, allocen
     kd_tree = KDTree(dataset.points_xyz[:,:3])
 
     # prevent error when not entering the loop (empty names)
-    new_scene_points_xyz = dataset.points_xyz[:,:3]
+    new_scene_points_xyz = inpainted_points #dataset.points_xyz[:,:3]
 
     new_points_xyz_no_resampling_occlusion = inpainted_points
     
     
     print("length_names", len(names))
 
+    #### count how many objects are inserted usccessfully
+    count = 0
+    count_failure_types = [0,0]
     # iterate over each object we want to insert
     for i, name in enumerate(names):
         
@@ -369,11 +363,10 @@ def insertion_vehicles_driver(inpainted_points_masked, inpainted_points, allocen
         else:
             print("using incomplete point cloud......")
             pc_full_path = os.path.join(pc_path, pc_filename)
-            #raise Exception("I prefer completed point cloud LOL")
+            raise Exception("I prefer completed point cloud LOL")
         vehicle_pc = np.asarray(open3d.io.read_point_cloud(pc_full_path).points) #np.load(pc_full_path)
 
         ###### insert it right at the position of the original box in the scene before foreground removal
-        # original_box = original_vehicle_boxes[i]
         original_alpha, original_gamma, original_center = angles_from_box(original_box)
         insert_xyz_pos = original_center.reshape(-1)
         insert_xyz_pos[2]-= float(original_box.wlh[2])/2.0 # bottom of the box center
@@ -420,8 +413,13 @@ def insertion_vehicles_driver(inpainted_points_masked, inpainted_points, allocen
 
         #start_time = timeit.default_timer()
         insert_result = insert_vehicle_pc(vehicle_pc, bbox, insert_xyz_pos, rotation_align, voxels_occupancy_has, voxelizer, dataset, mode=mode, use_ground_seg=True, center=center3D, kitti2nusc=False, use_dense=use_dense, inpainted_background=inpainted_points_masked)
-        if insert_result is None:
-            print("**** warning: skip current vehicle due to collision with inpainted background points")
+        if len(insert_result)==2 and insert_result[0] is None:
+            if insert_result[1]==0:
+                print("**** warning: skip current vehicle due to collision with non-ground inpainted background points")
+                count_failure_types[0]+=1
+            elif insert_result[1]==1:
+                print("**** warning: skip current vehicle due to out of bound vehicle")
+                count_failure_types[1]+=1
             continue
         new_scene_points_xyz, new_occupancy, new_bbox, insert_xyz_pos, vehicle_pc = insert_result
         #mid_time = timeit.default_timer()
@@ -458,6 +456,8 @@ def insertion_vehicles_driver(inpainted_points_masked, inpainted_points, allocen
         new_obj_ann_token_list.append(new_obj_ann_token)
         new_ann_info_list.append(new_ann_info)
 
+        count+=1
+
     ## remove new bboxes that contain no points after applying occlusion
     new_bboxes_copy = [copy.deepcopy(box) for box in new_bboxes]
     new_obj_ann_token_list_copy = [ann_token for ann_token in new_obj_ann_token_list]
@@ -488,12 +488,53 @@ def insertion_vehicles_driver(inpainted_points_masked, inpainted_points, allocen
     new_points_xyz = np.concatenate((new_scene_points_xyz, extras), axis=1)
     assert(new_points_xyz.shape[-1]==5)
 
-    new_points_xyz[:,3] = original_points[:,3][nearest_idxs].astype(np.float64)
+    ################ Get intensities (reflectance ##############)
+    new_intensities_nearest_neighbor = original_points[:,3][nearest_idxs].astype(np.float64)
+    ### visualize nearest neighbor intensities
+    # print(f"++++ nearest neighbor intensities")
+    # original_points = new_scene_points_xyz
+    # pcd = open3d.geometry.PointCloud()
+    # pcd.points = open3d.utility.Vector3dVector(np.array(original_points[:,:3]))
+    # pcd_colors = np.tile(np.array([[0,1,0]]), (len(original_points), 1))*new_intensities_nearest_neighbor[:, np.newaxis]/255.0
+    # pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
+    # mat = open3d.visualization.rendering.MaterialRecord()
+    # mat.shader = 'defaultUnlit'
+    # mat.point_size = 3.0
+    # open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
+    
+    ################## intensity vqvae
+    # new_occupancy_tensor = voxels_occupancy_has.to(intensity_model.quantizer.device)[0]
+    # new_occupancy_grid_img_ordering = new_occupancy_tensor.unsqueeze(0).permute(0,3,1,2)
+    # pred_intensity_grid = intensity_model.encode_decode_no_quantize(new_occupancy_grid_img_ordering) #(B,C, H, W)
+    # non_zero_indices = torch.nonzero(new_occupancy_tensor.detach().cpu(), as_tuple=True)
+    # pred_intensity_grid = pred_intensity_grid[0].permute(1,2,0).detach().cpu().numpy()
+    # pred_point_intensity = pred_intensity_grid[non_zero_indices[0].numpy(), non_zero_indices[1].numpy(), non_zero_indices[2].numpy()] # get the intensity of the occupied voxels
+    # assert(len(pred_point_intensity)==len(new_points_xyz))
+
+    ################## TODO: intensity unet
+
+    # print("########### L2 reflectance error: ", np.sqrt(np.sum((pred_point_intensity - new_intensities_nearest_neighbor)**2)))
+
+    ### visualize predicted intensities
+    # print(f"++++ predicted intensities")
+    # original_points = new_scene_points_xyz
+    # pcd = open3d.geometry.PointCloud()
+    # pcd.points = open3d.utility.Vector3dVector(np.array(original_points[:,:3]))
+    # pcd_colors = np.tile(np.array([[0,1,0]]), (len(original_points), 1))*pred_point_intensity[:, np.newaxis]/255.0
+    # pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
+    # mat = open3d.visualization.rendering.MaterialRecord()
+    # mat.shader = 'defaultUnlit'
+    # mat.point_size = 3.0
+    # open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
+    ##########################################################################
+
+    new_intensities = new_intensities_nearest_neighbor #pred_point_intensity #new_intensities_nearest_neighbor #pred_point_intensity #new_intensities_nearest_neighbor
+    new_points_xyz[:,3] = new_intensities
     #new_points_xyz[:,3] = 0.0 #original_points[:,3][nearest_idxs].astype(np.float64)
     #### timestamp (ignore this)
     new_points_xyz[:,4] = 0.0 #original_points[0,4]
 
-    ############### ######## visualize without resampling and occlusion
+    # ############## ######## visualize without resampling and occlusion
     # print("############## visualizing inserted cars with no resampling nor occlusion")
     # pcd = open3d.geometry.PointCloud()
     # pcd.points = open3d.utility.Vector3dVector(np.array(new_points_xyz_no_resampling_occlusion))
@@ -615,12 +656,13 @@ def insertion_vehicles_driver(inpainted_points_masked, inpainted_points, allocen
         # end_dict_time = timeit.default_timer()
         # print(f"$$$$$ token2sample dict saving time: {end_dict_time - start_dict_time} seconds")
 
-    return new_scene_points_xyz, new_bboxes, token2sample_dict, voxels_occupancy_has, original_vehicle_boxes
+    return new_scene_points_xyz, new_bboxes, token2sample_dict, voxels_occupancy_has, original_vehicle_boxes, new_points_xyz, count, count_failure_types
 
 
 
 def save_reconstruct_data(rec_voxels_occupancy_has, dataset, voxelizer, token2sample_dict, args, save_lidar_path, mode="spherical"):
     '''
+    I am not using this method now... 
     Just save the reconstructed voxels with foreground points and the corresponding bounding boxes, annotations and sample_records
     
     - voxels occupancy has: shape (1, #z, #r, #theta)
@@ -696,6 +738,7 @@ def count_vehicle_name_in_box_list(boxes, vehicle_names_dict):
 ###################################################################################################################################
 def perturb_2d(point, radius):
     '''
+    perturb a point with the specified radius at a random angle (azimuth)
     point: (2,)
     '''
     theta = np.random.uniform(0, 2 * np.pi)
@@ -787,11 +830,13 @@ def rotation_matrix_2d(angle):
 
 
 
-def insertion_vehicles_driver_perturbed(inpainted_points_masked, inpainted_points, allocentric_dict, voxels_occupancy_has, names, dataset, voxelizer, token2sample_dict, args, save_lidar_path, mode="spherical"):
+def insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked, inpainted_points, allocentric_dict, voxels_occupancy_has, names, dataset, voxelizer, token2sample_dict, args, save_lidar_path, mode="spherical"):
     '''
     Driver method of inserting vehicle with slightly perturbed position and allocentric angle
 
-
+    - intensity_model: the model that predicts intensity of the generated point cloud with vehicles inserted
+    - inpainted_points_masked: inpainted points in the masked area
+    - inpainted_points: the resultant point cloud after background inpainting
     - allocentric dict: contains all information of the completed point clouds
     - voxels_occupancy_has: (1, #r, #theta, #z), occupancy grid of the scene
     #- names: list of sampled vehicle names
@@ -827,13 +872,14 @@ def insertion_vehicles_driver_perturbed(inpainted_points_masked, inpainted_point
     kd_tree = KDTree(dataset.points_xyz[:,:3])
 
     # prevent error when not entering the loop (empty names)
-    new_scene_points_xyz = dataset.points_xyz[:,:3]
+    new_scene_points_xyz = inpainted_points #dataset.points_xyz[:,:3]
 
     new_points_xyz_no_resampling_occlusion = inpainted_points
     
     
     print("length_names", len(names))
-
+    count = 0
+    count_failure_types = [0,0]
     # iterate over each object we want to insert
     for i, name in enumerate(names):
         # if i%2==0:
@@ -881,7 +927,7 @@ def insertion_vehicles_driver_perturbed(inpainted_points_masked, inpainted_point
         else:
             print("using incomplete point cloud......")
             pc_full_path = os.path.join(pc_path, pc_filename)
-            #raise Exception("I prefer completed point cloud LOL")
+            raise Exception("I prefer completed point cloud LOL")
         vehicle_pc = np.asarray(open3d.io.read_point_cloud(pc_full_path).points) #np.load(pc_full_path)
 
         ###### insert it right at the position of the original box in the scene before foreground removal
@@ -949,8 +995,16 @@ def insertion_vehicles_driver_perturbed(inpainted_points_masked, inpainted_point
         rotation_align-= (rand_alpha_offset)
 
         insert_result = insert_vehicle_pc(vehicle_pc, bbox, insert_xyz_pos, rotation_align, voxels_occupancy_has, voxelizer, dataset, mode=mode, use_ground_seg=True, center=center3D, kitti2nusc=False, use_dense=use_dense)
-        if insert_result is None:
-            print("**** warning: skip current vehicle due to collision with inpainted background points")
+        # if insert_result is None:
+        #     print("**** warning: skip current vehicle due to collision with inpainted background points")
+        #     continue
+        if len(insert_result)==2 and insert_result[0] is None:
+            if insert_result[1]==0:
+                print("**** warning: skip current vehicle due to collision with non-ground inpainted background points")
+                count_failure_types[0]+=1
+            elif insert_result[1]==1:
+                print("**** warning: skip current vehicle due to out of bound vehicle")
+                count_failure_types[1]+=1
             continue
         new_scene_points_xyz, new_occupancy, new_bbox, insert_xyz_pos, vehicle_pc = insert_result
 
@@ -964,7 +1018,7 @@ def insertion_vehicles_driver_perturbed(inpainted_points_masked, inpainted_point
         new_obj_ann_token_list.append(new_obj_ann_token)
         new_ann_info_list.append(new_ann_info)
 
-        
+        count+=1
 
     ### remove new bboxes that contain no points after applying occlusion
     new_bboxes_copy = [copy.deepcopy(box) for box in new_bboxes]
@@ -982,41 +1036,41 @@ def insertion_vehicles_driver_perturbed(inpainted_points_masked, inpainted_point
     assert(len(new_bboxes)==len(new_obj_ann_token_list)==len(new_ann_info_list))
 
     ######## visualize without resampling and occlusion
-    # print("############## visualizing inserted cars with no resampling nor occlusion")
-    # pcd = open3d.geometry.PointCloud()
-    # pcd.points = open3d.utility.Vector3dVector(np.array(new_points_xyz_no_resampling_occlusion))
-    # pcd_colors = np.tile(np.array([[0,0,1]]), (len(new_points_xyz_no_resampling_occlusion), 1))
-    # mask_vehicle = np.ones((len(new_points_xyz_no_resampling_occlusion),))==0
-    # for i, box in enumerate(new_bboxes_copy):
-    #     mask = points_in_box(box, new_points_xyz_no_resampling_occlusion.T, wlh_factor = 1.0)
-    #     mask_vehicle = mask_vehicle | mask
-    # pcd_colors[mask_vehicle==1, 0] = 1
-    # pcd_colors[mask_vehicle==1, 2] = 0
-    # pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
+    print("############## visualizing inserted cars with no resampling nor occlusion")
+    pcd = open3d.geometry.PointCloud()
+    pcd.points = open3d.utility.Vector3dVector(np.array(new_points_xyz_no_resampling_occlusion))
+    pcd_colors = np.tile(np.array([[0,0,1]]), (len(new_points_xyz_no_resampling_occlusion), 1))
+    mask_vehicle = np.ones((len(new_points_xyz_no_resampling_occlusion),))==0
+    for i, box in enumerate(new_bboxes_copy):
+        mask = points_in_box(box, new_points_xyz_no_resampling_occlusion.T, wlh_factor = 1.0)
+        mask_vehicle = mask_vehicle | mask
+    pcd_colors[mask_vehicle==1, 0] = 1
+    pcd_colors[mask_vehicle==1, 2] = 0
+    pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
 
-    # mat = open3d.visualization.rendering.MaterialRecord()
-    # mat.shader = 'defaultUnlit'
-    # mat.point_size = 3.0
-    # open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
+    mat = open3d.visualization.rendering.MaterialRecord()
+    mat.shader = 'defaultUnlit'
+    mat.point_size = 3.0
+    open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
 
-    # ground_pcd = open3d.geometry.PointCloud()
-    # ground_pcd.points = open3d.utility.Vector3dVector(dataset.point_cloud_dataset.ground_points[:,:3][:,:3])
-    # ground_pcd_colors = np.tile(np.array([[0,1,0]]), (len(dataset.point_cloud_dataset.ground_points[:,:3][:,:3]), 1))
-    # ground_pcd.colors = open3d.utility.Vector3dVector(ground_pcd_colors)
+    ground_pcd = open3d.geometry.PointCloud()
+    ground_pcd.points = open3d.utility.Vector3dVector(dataset.point_cloud_dataset.ground_points[:,:3][:,:3])
+    ground_pcd_colors = np.tile(np.array([[0,1,0]]), (len(dataset.point_cloud_dataset.ground_points[:,:3][:,:3]), 1))
+    ground_pcd.colors = open3d.utility.Vector3dVector(ground_pcd_colors)
 
-    # lines = [[0, 1], [1, 2], [2, 3], [0, 3],
-    #      [4, 5], [5, 6], [6, 7], [4, 7],
-    #      [0, 4], [1, 5], [2, 6], [3, 7]]
-    # visboxes = []
-    # for box in new_bboxes_copy:
-    #     line_set = open3d.geometry.LineSet()
-    #     line_set.points = open3d.utility.Vector3dVector(box.corners().T)
-    #     line_set.lines = open3d.utility.Vector2iVector(lines)
-    #     colors = [[1, 0, 0] for _ in range(len(lines))]
-    #     line_set.colors = open3d.utility.Vector3dVector(colors)
-    #     visboxes.append(line_set)
+    lines = [[0, 1], [1, 2], [2, 3], [0, 3],
+         [4, 5], [5, 6], [6, 7], [4, 7],
+         [0, 4], [1, 5], [2, 6], [3, 7]]
+    visboxes = []
+    for box in new_bboxes_copy:
+        line_set = open3d.geometry.LineSet()
+        line_set.points = open3d.utility.Vector3dVector(box.corners().T)
+        line_set.lines = open3d.utility.Vector2iVector(lines)
+        colors = [[1, 0, 0] for _ in range(len(lines))]
+        line_set.colors = open3d.utility.Vector3dVector(colors)
+        visboxes.append(line_set)
 
-    # open3d.visualization.draw_geometries([pcd, ground_pcd]+visboxes)
+    open3d.visualization.draw_geometries([pcd, ground_pcd]+visboxes)
 
     # cam_right_vec = np.array([1.0, 0.0, 0.0])
     # cam_pos = np.array([0.0, 0.0, 5.0])
@@ -1030,21 +1084,21 @@ def insertion_vehicles_driver_perturbed(inpainted_points_masked, inpainted_point
 
 
 
-    # print("############## visualizing inserted cars with POST-PROCESSING i.e. OCCLUSION")
-    # pcd = open3d.geometry.PointCloud()
-    # pcd.points = open3d.utility.Vector3dVector(np.array(new_scene_points_xyz))
-    # pcd_colors = np.tile(np.array([[0,0,1]]), (len(new_scene_points_xyz), 1))
-    # mask_vehicle = np.ones((len(new_scene_points_xyz),))==0
-    # for i, box in enumerate(new_bboxes):
-    #     mask = points_in_box(box, new_scene_points_xyz.T, wlh_factor = 1.0)
-    #     mask_vehicle = mask_vehicle | mask
-    # pcd_colors[mask_vehicle==1, 0] = 1
-    # pcd_colors[mask_vehicle==1, 2] = 0
-    # pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
-    # mat = open3d.visualization.rendering.MaterialRecord()
-    # mat.shader = 'defaultUnlit'
-    # mat.point_size = 3.0
-    #open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
+    print("############## visualizing inserted cars with POST-PROCESSING i.e. OCCLUSION")
+    pcd = open3d.geometry.PointCloud()
+    pcd.points = open3d.utility.Vector3dVector(np.array(new_scene_points_xyz))
+    pcd_colors = np.tile(np.array([[0,0,1]]), (len(new_scene_points_xyz), 1))
+    mask_vehicle = np.ones((len(new_scene_points_xyz),))==0
+    for i, box in enumerate(new_bboxes):
+        mask = points_in_box(box, new_scene_points_xyz.T, wlh_factor = 1.0)
+        mask_vehicle = mask_vehicle | mask
+    pcd_colors[mask_vehicle==1, 0] = 1
+    pcd_colors[mask_vehicle==1, 2] = 0
+    pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
+    mat = open3d.visualization.rendering.MaterialRecord()
+    mat.shader = 'defaultUnlit'
+    mat.point_size = 3.0
+    open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
 
     # cam_right_vec = np.array([1.0, 0.0, 0.0])
     # cam_pos = np.array([0.0, 0.0, 5.0])
@@ -1057,15 +1111,57 @@ def insertion_vehicles_driver_perturbed(inpainted_points_masked, inpainted_point
     #                                 cam_up_vector=cam_up_vec, zoom=0.1)
 
     
-    ## get nearest neighbor intensity
-    original_points = dataset.points_xyz #(N,5)
-    _, nearest_idxs = kd_tree.query(new_scene_points_xyz[:,:3], k=1)
+
     # make the point dim be 5
     extras = np.zeros((len(new_scene_points_xyz), 2))
     new_points_xyz = np.concatenate((new_scene_points_xyz, extras), axis=1)
     assert(new_points_xyz.shape[-1]==5)
 
-    new_points_xyz[:,3] = original_points[:,3][nearest_idxs].astype(np.float64)
+    ## get nearest neighbor intensity
+    original_points = dataset.points_xyz #(N,5)
+    _, nearest_idxs = kd_tree.query(new_scene_points_xyz[:,:3], k=1)
+    
+    ################ Get intensities (reflectance ##############)
+    new_intensities_nearest_neighbor = original_points[:,3][nearest_idxs].astype(np.float64)
+    ### visualize nearest neighbor intensities
+    # print(f"++++ nearest neighbor intensities")
+    # original_points = new_scene_points_xyz
+    # pcd = open3d.geometry.PointCloud()
+    # pcd.points = open3d.utility.Vector3dVector(np.array(original_points[:,:3]))
+    # pcd_colors = np.tile(np.array([[0,1,0]]), (len(original_points), 1))*new_intensities_nearest_neighbor[:, np.newaxis]/255.0
+    # pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
+    # mat = open3d.visualization.rendering.MaterialRecord()
+    # mat.shader = 'defaultUnlit'
+    # mat.point_size = 3.0
+    # open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
+    
+    ################## intensity vqvae
+    # new_occupancy_tensor = voxels_occupancy_has.to(intensity_model.quantizer.device)[0]
+    # new_occupancy_grid_img_ordering = new_occupancy_tensor.unsqueeze(0).permute(0,3,1,2)
+    # pred_intensity_grid = intensity_model.encode_decode_no_quantize(new_occupancy_grid_img_ordering) #(B,C, H, W)
+    # non_zero_indices = torch.nonzero(new_occupancy_tensor.detach().cpu(), as_tuple=True)
+    # pred_intensity_grid = pred_intensity_grid[0].permute(1,2,0).detach().cpu().numpy()
+    # pred_point_intensity = pred_intensity_grid[non_zero_indices[0].numpy(), non_zero_indices[1].numpy(), non_zero_indices[2].numpy()] # get the intensity of the occupied voxels
+    # assert(len(pred_point_intensity)==len(new_points_xyz))
+
+    ################ TODO: intensity unet 
+
+    # print("########### L2 reflectance error: ", np.sqrt(np.sum((pred_point_intensity - new_intensities_nearest_neighbor)**2)))
+
+    ### visualize predicted intensities
+    # print(f"++++ predicted intensities")
+    # original_points = new_scene_points_xyz
+    # pcd = open3d.geometry.PointCloud()
+    # pcd.points = open3d.utility.Vector3dVector(np.array(original_points[:,:3]))
+    # pcd_colors = np.tile(np.array([[0,1,0]]), (len(original_points), 1))*pred_point_intensity[:, np.newaxis]/255.0
+    # pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
+    # mat = open3d.visualization.rendering.MaterialRecord()
+    # mat.shader = 'defaultUnlit'
+    # mat.point_size = 3.0
+    # open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
+
+    new_intensity = new_intensities_nearest_neighbor
+    new_points_xyz[:,3] = new_intensity
     new_points_xyz[:,4] = 0.0 #original_points[0,4]
 
     points_xyz = new_scene_points_xyz
@@ -1087,4 +1183,4 @@ def insertion_vehicles_driver_perturbed(inpainted_points_masked, inpainted_point
     ############## Save the data needed to build the new database
     token2sample_dict[lidar_sample_token] = (lidar_full_path, bounding_boxes, new_obj_ann_token_list, sample_records, new_ann_info_list)
 
-    return new_scene_points_xyz, new_bboxes, token2sample_dict, voxels_occupancy_has, original_vehicle_boxes
+    return new_scene_points_xyz, new_bboxes, token2sample_dict, voxels_occupancy_has, original_vehicle_boxes, new_points_xyz, count, count_failure_types

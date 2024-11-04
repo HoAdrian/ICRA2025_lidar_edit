@@ -47,8 +47,15 @@ echo "++++ !!!! IMPORTANT : Before training, check dataset path, set the config 
 # tensorboard --logdir="./figures/mask_git_trans/runs"
 
 
-intensity_vqvae_path="./weights/intensity_vqvae_weights"
-intensity_vqvae_epoch=12 #40 #12
-echo "INTENSITY VQVAE PATH: ${intensity_vqvae_path}"
-#python train_transformer_models/train_intensity_vqvae.py --trainval_data_path=$dataset_path --data_version=$version --weight_path="$intensity_vqvae_path" --num_epochs=121 --resume_epoch=44
-python train_transformer_models/test_intensity_vqvae.py --trainval_data_path=$dataset_path --data_version=$version --vqvae_path="$intensity_vqvae_path/epoch_$intensity_vqvae_epoch" --figures_path="./figures/intensity_vqvae" # epoch 80 for mini
+# intensity_vqvae_path="./weights/intensity_vqvae_weights"
+# intensity_vqvae_epoch=10 #40 #12
+# echo "INTENSITY VQVAE PATH: ${intensity_vqvae_path}"
+# #python train_transformer_models/train_intensity_vqvae.py --trainval_data_path=$dataset_path --data_version=$version --weight_path="$intensity_vqvae_path" --num_epochs=121 #--resume_epoch=12
+# python train_transformer_models/test_intensity_vqvae.py --trainval_data_path=$dataset_path --data_version=$version --vqvae_path="$intensity_vqvae_path/epoch_$intensity_vqvae_epoch" --figures_path="./figures/intensity_vqvae" # epoch 80 for mini
+
+
+intensity_unet_path="./weights/intensity_unet_weights"
+intensity_unet_epoch=20 #40 #12
+echo "INTENSITY unet PATH: ${intensity_unet_path}"
+python train_intensity_models/train_intensity_unet.py --trainval_data_path=$dataset_path --data_version=$version --weight_path="$intensity_unet_path" --num_epochs=61 --resume_epoch=20
+#python train_intensity_models/test_intensity_unet.py --trainval_data_path=$dataset_path --data_version=$version --model_path="$intensity_unet_path/epoch_$intensity_unet_epoch" --figures_path="./figures/intensity_unet" # epoch 80 for mini

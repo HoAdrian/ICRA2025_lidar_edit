@@ -80,32 +80,30 @@ if __name__=="__main__":
         allocentric_dict = {name: [[], [], [], [], [], [], [], [], [],[],[],[], []] for name in vehicle_names.values()}
         sample_dict = {}
 
-        max_num_bus = 1
-        max_num_truck = 1
-        max_num_car = 1
+        max_num_bus = 100
+        max_num_truck = 100
+        max_num_car = 100
         num_car, num_truck, num_bus = 0,0,0
 
         # use val_dataset first if it is mini
         for i, dataset in enumerate([val_dataset, train_dataset]):
             if i==1:
                 is_train=True
+                ### for only using val dataset
+                break
             else:
                 is_train=False
             
-
-            samples = np.arange(len(dataset))
-            np.random.shuffle(samples)
-            samples[0] = 40
+            ############ for handpicking vehicles
+            # samples = np.arange(len(dataset))
+            # np.random.shuffle(samples)
+            # samples[0] = 40
+            samples = [196, 296]
             for k in samples:
                 if os.path.exists(os.path.join(args.pc_path, "bus")):
                     num_bus = len(os.listdir(os.path.join(args.pc_path, "bus")))
-                    # if num_bus>=1:
-                    #     print(f"!!! sample {k}")
-                    #     raise Exception("DONE")
-
                 if os.path.exists(os.path.join(args.pc_path, "car")):
                     num_car = len(os.listdir(os.path.join(args.pc_path, "car")))
-
                 if os.path.exists(os.path.join(args.pc_path, "truck")):
                     num_truck = len(os.listdir(os.path.join(args.pc_path, "truck")))
 
@@ -144,7 +142,9 @@ if __name__=="__main__":
                     # print(len(points))
                     # time.sleep(3)
 
-                    is_good_completion = ((len(points) >= 1000) or (name=="car" and len(points)>=600)) #500, 200
+                    #### for very good completion and handpicking
+                    # is_good_completion = ((len(points) >= 1000) or (name=="car" and len(points)>=600)) #500, 200
+                    is_good_completion = ((len(points) >= 200) or (name=="car" and len(points)>=200)) #500, 200
 
                     front, side, vert = dataset.box_length_stats["front"], dataset.box_length_stats["side"], dataset.box_length_stats["vertical"]
                     print(f"---front={front[-1]}, side={side[-1]}, vertical={vert[-1]}")
@@ -293,16 +293,16 @@ if __name__=="__main__":
 
 
                         # # visualized unnormalized points
-                        # if name=="car":
-                        #     print("visualize unnormalized")
-                        #     pcd = open3d.geometry.PointCloud()
-                        #     pcd.points = open3d.utility.Vector3dVector(np.array(points))
-                        #     pcd_colors = np.tile(np.array([[0,0,1]]), (len(points), 1))
-                        #     pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
-                        #     car_vis_pos = open3d.geometry.TriangleMesh.create_sphere(radius=0.1)
-                        #     car_vis_pos.paint_uniform_color([1,0,0])  
-                        #     car_vis_pos.translate(tuple(center3D))
-                        #     open3d.visualization.draw_geometries([pcd, car_vis_pos]) 
+                        ##if name=="car":
+                        print("visualize unnormalized")
+                        pcd = open3d.geometry.PointCloud()
+                        pcd.points = open3d.utility.Vector3dVector(np.array(points))
+                        pcd_colors = np.tile(np.array([[0,0,1]]), (len(points), 1))
+                        pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
+                        car_vis_pos = open3d.geometry.TriangleMesh.create_sphere(radius=0.1)
+                        car_vis_pos.paint_uniform_color([1,0,0])  
+                        car_vis_pos.translate(tuple(center3D))
+                        open3d.visualization.draw_geometries([pcd, car_vis_pos]) 
 
                         # print("visualize normalized")
                         # print(f"num points: {len(points_normalized)}")

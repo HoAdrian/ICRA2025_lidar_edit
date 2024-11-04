@@ -49,8 +49,8 @@ if __name__=="__main__":
 
     vis = False
     voxelizer = Voxelizer(grid_size=config.grid_size, max_bound=config.max_bound, min_bound=config.min_bound)
-    train_pt_dataset = NuscenesForeground(args.trainval_data_path, version = args.data_version, split = 'train', vis=vis, mode=mode, ignore_collect=False, any_scene=True, get_raw=True)
-    val_pt_dataset = NuscenesForeground(args.trainval_data_path, version = args.data_version, split = 'val', vis=vis, mode=mode, ignore_collect=False, any_scene=True, get_raw=True)
+    train_pt_dataset = NuscenesForeground(args.trainval_data_path, version = args.data_version, split = 'train', vis=vis, mode=mode, ignore_collect=False, any_scene=True, get_raw=False)
+    val_pt_dataset = NuscenesForeground(args.trainval_data_path, version = args.data_version, split = 'val', vis=vis, mode=mode, ignore_collect=False, any_scene=True, get_raw=False)
     train_dataset=PolarDataset(train_pt_dataset, voxelizer, flip_aug = False, rotate_aug = False, is_test=True, vis=vis)
     val_dataset=PolarDataset(val_pt_dataset, voxelizer, flip_aug = False, rotate_aug = False, is_test=True, vis=vis)
 
@@ -75,6 +75,7 @@ if __name__=="__main__":
             token2sample_dict = pickle.load(handle)
         print("@@@ token2sample dict loaded, continue populating it...")
 
+    samples = [196,296]
     for k in samples:
         print(f"######## raw for testing: {args.data_version}_{args.split} sample ", k, "/", len(samples))
         #k = 4
@@ -99,7 +100,41 @@ if __name__=="__main__":
         sample_records = dataset.obj_properties[12]
         new_ann_info_list = dataset.obj_properties[13]
 
+
+        print("VISUALIZING original POINT CLOUD HERE.......") 
+        pcd = open3d.geometry.PointCloud()
+        print("dataset original points: ", dataset.points_xyz.shape)
+        print("dataset original points: ", type(dataset.points_xyz))
+        print("dataset original points: ", dataset.points_xyz.dtype)
+        pcd.points = open3d.utility.Vector3dVector(np.array(dataset.points_xyz[:,:3]))
+        pcd_colors = np.tile(np.array([[0,0,1]]), (len(dataset.points_xyz), 1))
+        pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
         
+        ground_pcd = open3d.geometry.PointCloud()
+        grd_points = dataset.point_cloud_dataset.ground_points[:,:3][:,:3] #points_list[0] #
+        ground_pcd.points = open3d.utility.Vector3dVector(grd_points)
+        ground_pcd_colors = np.tile(np.array([[0,1,0]]), (len(grd_points), 1))
+        ground_pcd.colors = open3d.utility.Vector3dVector(ground_pcd_colors)
+
+        lines = [[0, 1], [1, 2], [2, 3], [0, 3],
+        [4, 5], [5, 6], [6, 7], [4, 7],
+        [0, 4], [1, 5], [2, 6], [3, 7]]
+        visboxes = []
+        for box in bounding_boxes:
+            line_set = open3d.geometry.LineSet()
+            line_set.points = open3d.utility.Vector3dVector(box.corners().T)
+            line_set.lines = open3d.utility.Vector2iVector(lines)
+            if vehicle_names[box.name]=="car":
+                colors = [[1, 0, 0] for _ in range(len(lines))]
+            elif vehicle_names[box.name]=="truck":
+                colors = [[0, 1, 0] for _ in range(len(lines))]
+            elif vehicle_names[box.name]=="bus":
+                colors = [[0, 0, 1] for _ in range(len(lines))]
+            line_set.colors = open3d.utility.Vector3dVector(colors)
+            visboxes.append(line_set)
+        open3d.visualization.draw_geometries([pcd, ground_pcd]+visboxes)
+
+    
 
         pc_name = f'{args.split}_{lidar_sample_token}.bin'
         os.makedirs(os.path.join(args.save_lidar_path, "lidar_point_clouds"), exist_ok=True)

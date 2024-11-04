@@ -706,6 +706,9 @@ class NuscenesForeground(data.Dataset):
             if not self.ignore_collect:
                 for i, box in enumerate(boxes):
                     bb_mask = points_in_box(box, points_3D.T, wlh_factor = 1.0)
+                    ### TODO: evaluate how this may improve the performance
+                    if np.sum(bb_mask)==0:
+                        continue
                     obj_points = points_3D[bb_mask]
                     category = boxes[i].name
                     ann_token = sample_annotation_tokens[i]
@@ -760,8 +763,8 @@ class NuscenesForeground(data.Dataset):
                     
                     box_cam_kitti, box_lidar_kitti = self.kitti_box_converter.nuscenes_gt_to_kitti(self.nusc, sample, nusc_lidar_box=box)
                     
-
-                    if category in vehicle_names or self.get_raw:
+                    box_not_empty = np.sum(points_in_box(box, points_3D.T, wlh_factor = 1.0))!=0
+                    if (category in vehicle_names or self.get_raw) and (box_not_empty):
                         obj_point_cloud_list.append(obj_points)
                         if category in vehicle_names:
                             obj_name_list.append(vehicle_names[category])

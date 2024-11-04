@@ -59,6 +59,12 @@ maskgit_trans_config = {
     "num_heads":8
 }
 
+######## for range image (these specifications about LiDAR are modified from NuScenes official websites)
+half_grid = ((120+40/31/2)-(80-40/31/2))/grid_size[2]/2
+fov_up= 90 - (80-40/31/2)# + half_grid#10 # in degree
+fov_down= -(120+40/31/2 - 90)# - half_grid #-30 #in degree
+max_range=50.635955604688654 #100.0
+
 ############### try 1524 codes for spherical
 # vqvae_trans_config = {
 #     "codebook_dim":1024,

@@ -69,6 +69,7 @@ def cart2spherical(input_xyz):
     theta[theta<0] += 2*np.pi # map the range of theta back to [0, 2*pi)
     r = np.where(r==0, 1e-6, r)
     phi = np.arccos(input_xyz[:,2:3]/r)
+    #phi = np.where(r==0, 0.0, phi)
     return np.concatenate((r,theta,phi,input_xyz[:,3:]),axis=1)
 
 def spherical2cart(input_xyz_spherical):
@@ -592,47 +593,35 @@ def visualize_rotating_open3d_objects(open3d_objects, offsets=[[0.1,0,0]], shift
         
 
 
+from nuscenes.utils.geometry_utils import points_in_box
+def vis_point_cloud_with_bboxes(points, bboxes):
+    pcd = open3d.geometry.PointCloud()
+    pcd.points = open3d.utility.Vector3dVector(np.array(points))
+    pcd_colors = np.tile(np.array([[0,0,1]]), (len(points), 1))
+    mask_vehicle = np.ones((len(points),))==0
+    for i, box in enumerate(bboxes):
+        mask = points_in_box(box, points.T, wlh_factor = 1.0)
+        mask_vehicle = mask_vehicle | mask
+    pcd_colors[mask_vehicle==1, 0] = 1
+    pcd_colors[mask_vehicle==1, 2] = 0
+    pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
+    mat = open3d.visualization.rendering.MaterialRecord()
+    mat.shader = 'defaultUnlit'
+    mat.point_size = 3.0
 
-# def get_obj_mask(obj_region, points_polar, use_z=False):
-#   '''
-#   get the mask that masks out points enclosed and occluded by the object, defined by obj_region. By default, we ignore the z bounds of obj_region
-#   obj_region: shape (2, 3), [[min_r, min_theta, min_z], [max_r, max_theta, max_z]]
-#   points_polar: shape (N,d), d>=3, polar coordinates
-#   use_z: whether to compute the mask with the z dimension of the obj rejion as well
+    lines = [[0, 1], [1, 2], [2, 3], [0, 3],
+         [4, 5], [5, 6], [6, 7], [4, 7],
+         [0, 4], [1, 5], [2, 6], [3, 7]]
+    visboxes = []
+    for box in bboxes:
+        line_set = open3d.geometry.LineSet()
+        line_set.points = open3d.utility.Vector3dVector(box.corners().T)
+        line_set.lines = open3d.utility.Vector2iVector(lines)
+        colors = [[1, 0, 0] for _ in range(len(lines))]
+        line_set.colors = open3d.utility.Vector3dVector(colors)
+        visboxes.append(line_set)
 
-#   *** points_polar is in spherical coordinates, then use_z indicates whether to compute the mask with the phi dimension of the object
-#   '''
-#   min_dim, max_dim = obj_region[0], obj_region[1]
-#   r = points_polar[:,0]
-#   theta = points_polar[:,1]
-#   z = points_polar[:,2]
-#   obj_regions = []
-
-#   if (max_dim[1]>=3*np.pi/2 and min_dim[1]<=np.pi):
-#    # # split region if it crosses the first and forth quadrants
-#    obj_regions.append(np.array([np.array([min_dim[0], 0, min_dim[2]]), np.array([max_dim[0], min_dim[1], max_dim[2]])])) # 0 to min_dim[1]
-#    obj_regions.append(np.array([np.array([min_dim[0], max_dim[1], min_dim[2]]), np.array([max_dim[0], 2*np.pi, max_dim[2]])])) # max_dim[1] to 2pi
-#    mask = np.array([False for i in range(len(points_polar))])
-#    # do not use strict inequality when obj_region is the upper bound
-#    for obj_region in obj_regions:
-#     r_mask = (obj_region[0,0]<=r)
-#     theta_mask = (obj_region[0,1]<=theta)&(obj_region[1,1]>theta)
-#     if use_z:
-#       z_mask = (obj_region[0,2]<=z)&(obj_region[1,2]>z)
-#       mask = mask|((r_mask)&(theta_mask)&(z_mask))
-#     else:
-#       mask = mask|((r_mask)&(theta_mask))
-#   else:
-#     ## no need to split 
-#     r_mask = (obj_region[0,0]<=r)
-#     theta_mask = (obj_region[0,1]<=theta)&(obj_region[1,1]>theta)
-#     if use_z:
-#       z_mask = (obj_region[0,2]<=z)&(obj_region[1,2]>z)
-#       mask = (r_mask)&(theta_mask)&(z_mask)
-#     else:
-#       mask = ((r_mask)&(theta_mask))
-
-#   return mask, points_polar[mask]
+    open3d.visualization.draw_geometries([pcd]+visboxes)
 
 
 

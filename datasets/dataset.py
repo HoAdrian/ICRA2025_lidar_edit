@@ -34,13 +34,13 @@ class Voxelizer:
         min_bound: min bound of each dimension (3,)
         '''
         self.grid_size = np.array(grid_size)
-        self.max_bound = np.array(max_bound)
-        self.min_bound = np.array(min_bound)
+        self.max_bound = np.array(max_bound).astype(np.float64)
+        self.min_bound = np.array(min_bound).astype(np.float64)
 
         # get grid index
         crop_range = self.max_bound - self.min_bound
         cur_grid_size = self.grid_size
-        intervals = np.where(cur_grid_size!=1, crop_range/(cur_grid_size-1), crop_range+1)
+        intervals = np.where(cur_grid_size!=1, crop_range/(cur_grid_size-1).astype(np.float64), crop_range+1)
 
         if (intervals==0).any(): print("Zero interval!")
 
@@ -144,6 +144,9 @@ class Voxelizer:
         get voxel index for each point
         '''
         grid_ind = (np.floor((np.clip(points_polar[:],self.min_bound,self.max_bound)-self.min_bound)/self.intervals)).astype(np.int64) # shape: (num_points, 3), assuming 3 is len(grid_size)
+        # orig = len(points_polar)
+        # now = len(np.unique(grid_ind, axis=0))
+        # print(f"orig vs now: {orig} {now}")
         return grid_ind
     
     def idx2point(self, grid_idxs):
@@ -202,7 +205,7 @@ class Voxelizer:
         for b in range(B):
             voxels_b = voxels[b]
             voxels_b = voxels_b.permute(1,2,0) # (H, W, in_chans)
-            non_zero_indices = torch.nonzero(voxels_b) #(num_non_zero_voxel, 3)
+            non_zero_indices = torch.nonzero(voxels_b).float() #(num_non_zero_voxel, 3)
             ## convert non zero voxels to points
             intervals = torch.tensor(self.intervals).to(voxels.device).unsqueeze(0) #(1,3)
             min_bound = torch.tensor(self.min_bound).to(voxels.device).unsqueeze(0) #(1,3)
@@ -234,124 +237,6 @@ class Voxelizer:
             plot_points_and_voxels(points_xyz, intensity, voxel_position_BEV, BEV_voxel, xlim=xlim, ylim=ylim, vis=vis, title=None, path=path, name=name, vox_size=vox_size)
         else:
             plot_points_and_voxels(points_xyz, intensity, voxel_xyz=None, labels=None, xlim=xlim, ylim=ylim, vis=vis, title=None, path=path, name=name, vox_size=vox_size)
-
-    # def get_nearest_occupied_BEV_voxel(self, voxels_occupancy, vehicle_xyz_polar, mode):
-    #     '''
-    #     vehicle_xyz_polar: (1,3)
-    #     voxels_occupancy: (#r, #theta, #z), numpy ndarray
-        
-    #     return the position of nearest voxels in BEV that has the lowest thrid coordinate value, which is an ndarray of shape (M,3) for some M, M=1
-    #     '''
-    #     ## get the non-empty grid nearest to the vehicle in BEV
-    #     BEV_occupancy = get_BEV_label(voxels_occupancy) #(H,W)
-    #     BEV_vehicle_grid_idx = self.get_grid_ind(vehicle_xyz_polar)[:,:2] #(1,2)
-    #     #print(f"BEV vehicle grid idx: {BEV_vehicle_grid_idx}")
-    #     r_id, theta_id = np.nonzero(BEV_occupancy)
-    #     r_id = r_id.reshape(-1,1)
-    #     theta_id = theta_id.reshape(-1,1)
-    #     BEV_non_zero_grid_indxs = np.concatenate((r_id, theta_id), axis=1) #(N,2)
-    #     #print(f"BEV_non_zero_grid_indx: {BEV_non_zero_grid_indxs.shape}")
-    #     grid_dists = np.linalg.norm(BEV_vehicle_grid_idx - BEV_non_zero_grid_indxs, axis=1)
-    #     #print(f"grid_dists: {grid_dists.shape}")
-    #     BEV_nearest_idx = np.argmin(grid_dists, axis=0) 
-    #     BEV_nearest_grid_idx = BEV_non_zero_grid_indxs[BEV_nearest_idx] #(2,)
-    #     #print(f"BEV NEAREST GRID IDX: {BEV_nearest_grid_idx}")
-        
-    #     # get the grid that has the lowest z value in the nearest voxels in BEV
-    #     non_zero_grid_idxs_z = np.nonzero(voxels_occupancy[BEV_nearest_grid_idx[0], BEV_nearest_grid_idx[1], :])
-    #     #print(f"non zero grid z idx: {non_zero_grid_idxs_z}")
-    #     polar_voxels_positions = self.voxel_position[:,BEV_nearest_grid_idx[0],BEV_nearest_grid_idx[1], non_zero_grid_idxs_z[0]] #(3,M)
-    #     polar_voxels_positions = polar_voxels_positions.T #(M,3)
-    #     #print(f"polar voxel pos: {polar_voxels_positions}")
-    #     if mode=="polar":
-    #         polar_voxels_positions = polar_voxels_positions[np.argmin(polar_voxels_positions[:,2]), :][np.newaxis,:]
-    #     else:
-    #         polar_voxels_positions = polar_voxels_positions[np.argmax(polar_voxels_positions[:,2]), :][np.newaxis,:]
-
-    #     return polar_voxels_positions
-    
-    # def get_nearest_ground_BEV_voxel(self, ground_voxels_occupancy, vehicle_xyz_polar, mode):
-    #     '''
-    #     vehicle_xyz_polar: (1,3)
-    #     ground_voxels_occupancy: (#r, #theta, #z), numpy ndarray, 1 if it contains ground point (points on drivable surface)
-        
-    #     return the position of nearest voxels in BEV that has the lowest thrid coordinate value, which is an ndarray of shape (1,3)
-    #     '''
-    #     ## get the non-empty grid nearest to the vehicle in BEV
-    #     BEV_occupancy = get_BEV_label(ground_voxels_occupancy) #(H,W)
-    #     BEV_vehicle_grid_idx = self.get_grid_ind(vehicle_xyz_polar)[:,:2] #(1,2)
-    #     #print(f"BEV vehicle grid idx: {BEV_vehicle_grid_idx}")
-    #     r_id, theta_id = np.nonzero(BEV_occupancy)
-    #     r_id = r_id.reshape(-1,1)
-    #     theta_id = theta_id.reshape(-1,1)
-    #     BEV_non_zero_grid_indxs = np.concatenate((r_id, theta_id), axis=1) #(N,2)
-    #     #print(f"BEV_non_zero_grid_indx: {BEV_non_zero_grid_indxs.shape}")
-    #     grid_dists = np.linalg.norm(BEV_vehicle_grid_idx - BEV_non_zero_grid_indxs, axis=1)
-    #     #print(f"grid_dists: {grid_dists.shape}")
-    #     BEV_nearest_idx = np.argmin(grid_dists, axis=0) 
-    #     BEV_nearest_grid_idx = BEV_non_zero_grid_indxs[BEV_nearest_idx] #(2,)
-    #     #print(f"BEV NEAREST GRID IDX: {BEV_nearest_grid_idx}")
-        
-    #     # get the grid that has the lowest z value in the nearest voxels in BEV
-    #     non_zero_grid_idxs_z = np.nonzero(ground_voxels_occupancy[BEV_nearest_grid_idx[0], BEV_nearest_grid_idx[1], :])
-    #     #print(f"non zero grid z idx: {non_zero_grid_idxs_z}")
-    #     polar_voxels_positions = self.voxel_position[:,BEV_nearest_grid_idx[0],BEV_nearest_grid_idx[1], non_zero_grid_idxs_z[0]] #(3,M)
-    #     polar_voxels_positions = polar_voxels_positions.T #(M,3)
-    #     #print(f"polar voxel pos: {polar_voxels_positions}")
-    #     if mode=="polar":
-    #         polar_voxels_positions = polar_voxels_positions[np.argmin(polar_voxels_positions[:,2]), :][np.newaxis,:]
-    #     else:
-    #         polar_voxels_positions = polar_voxels_positions[np.argmax(polar_voxels_positions[:,2]), :][np.newaxis,:]
-
-    #     return polar_voxels_positions
-
-    # def get_nearest_ground_BEV_voxel_maybe(self, ground_voxels_occupancy, vehicle_xyz_polar, mode):
-    #     '''
-    #     vehicle_xyz_polar: (1,3)
-    #     ground_voxels_occupancy: (#r, #theta, #z), numpy ndarray, 1 if it contains ground point (points on drivable surface)
-        
-    #     return the position of nearest voxels in BEV that has the lowest thrid coordinate value, which is an ndarray of shape (1,3)
-    #     '''
-    #     ## get the non-empty grid nearest to the vehicle in BEV
-    #     vehicle_grid_idx_with_z = self.get_grid_ind(vehicle_xyz_polar)[:,:3]
-    #     r_id, theta_id, z_id = np.nonzero(ground_voxels_occupancy)
-    #     r_id = r_id.reshape(-1,1)
-    #     theta_id = theta_id.reshape(-1,1)
-    #     z_id = z_id.reshape(-1,1)
-    #     BEV_non_zero_grid_indxs = np.concatenate((r_id, theta_id), axis=1) #(N,2)
-    #     non_zero_grid_indxs_with_z = np.concatenate((r_id, theta_id, z_id), axis=1)  #(N,3)
-
-    #     ground_pts = self.idx2point(non_zero_grid_indxs_with_z)
-    #     vehicle_pts = self.idx2point(vehicle_grid_idx_with_z)
-    #     ground_xyz = polar2cart(ground_pts, mode=mode)
-    #     vehicle_xyz = polar2cart(vehicle_xyz_polar, mode=mode) #polar2cart(vehicle_pts, mode="polar")
-
-    #     print("vehicle_xyz:w", polar2cart(vehicle_xyz_polar, mode=mode))
-    #     print("vehicle_pts: ", vehicle_pts)
-    #     print("ground_xyz: ", ground_xyz)
-
-    #     grid_dists = np.linalg.norm(vehicle_xyz[:,:2] - ground_xyz[:,:2], axis=1)
-
-    #     #print(f"BEV_non_zero_grid_indx: {BEV_non_zero_grid_indxs.shape}")
-    #     # grid_dists = np.linalg.norm(BEV_vehicle_grid_idx - BEV_non_zero_grid_indxs, axis=1)
-    #     #print(f"grid_dists: {grid_dists.shape}")
-    #     BEV_nearest_idx = np.argmin(grid_dists, axis=0) 
-    #     BEV_nearest_grid_idx = BEV_non_zero_grid_indxs[BEV_nearest_idx] #(2,)
-    #     #print(f"BEV NEAREST GRID IDX: {BEV_nearest_grid_idx}")
-        
-    #     # get the grid that has the lowest z value in the nearest voxels in BEV
-    #     non_zero_grid_idxs_z = np.nonzero(ground_voxels_occupancy[BEV_nearest_grid_idx[0], BEV_nearest_grid_idx[1], :])
-    #     print(f"non zero grid z idx: {non_zero_grid_idxs_z}")
-    #     print(ground_voxels_occupancy[BEV_nearest_grid_idx[0], BEV_nearest_grid_idx[1], :])
-    #     polar_voxels_positions = self.voxel_position[:,BEV_nearest_grid_idx[0],BEV_nearest_grid_idx[1], non_zero_grid_idxs_z[0]] #(3,M)
-    #     polar_voxels_positions = polar_voxels_positions.T #(M,3)
-    #     #print(f"polar voxel pos: {polar_voxels_positions}")
-    #     if mode=="polar":
-    #         polar_voxels_positions = polar_voxels_positions[np.argmin(polar_voxels_positions[:,2]), :][np.newaxis,:]
-    #     else:
-    #         polar_voxels_positions = polar_voxels_positions[np.argmax(polar_voxels_positions[:,2]), :][np.newaxis,:]
-
-    #     return polar_voxels_positions
     
     def get_nearest_ground_BEV_pos(self, ground_xyz, vehicle_xyz_polar, mode):
         '''
@@ -413,11 +298,11 @@ class Voxelizer:
         for k, theta_z in enumerate(unique_theta_z):
             array1d = new_occupancy[:, theta_z[0], theta_z[1]]
             
-            # assert(np.sum(array1d==1)==1)
-            # if (np.sum(array1d==1)>1):
-            #     print("... num occ in column: ", np.sum(array1d==1))
-            #     print(theta_z)
-            #     print(np.nonzero(array1d)[0])
+            assert(np.sum(array1d==1)==1)
+            if (np.sum(array1d==1)>1):
+                print("... num occ in column: ", np.sum(array1d==1))
+                print(theta_z)
+                print(np.nonzero(array1d)[0])
         mid_time = timeit.default_timer()
         print(f"!!!!! verified occlude: {mid_time - start_time} seconds")
         
@@ -581,12 +466,93 @@ class Voxelizer:
         
         return intensity_occupancy.numpy()
 
+    ############### range image projection and de-projection ##################
+    ############### assume that the voxelizer is using spherical coordinates
+    def pc2range(self, point_cloud):
+        '''
+        Assuming the voxelizer is using spherical coordinates
+        point_cloud: shape (N,3) or (N,4)
+        return an intensity image and a range image
+        '''
+        assert(len(point_cloud.shape)==2)
+        assert(point_cloud.shape[-1]==3 or point_cloud.shape[-1]==4)
+        return_intensity = point_cloud.shape[-1]==4
+
+        x, y, z = point_cloud[:, 0], point_cloud[:, 1], point_cloud[:, 2] #cartesian
+        r = np.sqrt(x**2 + y**2 + z**2) #range
+
+        if return_intensity:
+            intensity = point_cloud[:,3] #reflectance
+
+        grid_inds = self.get_grid_ind(cart2polar(point_cloud[:,:3], mode="spherical")) #get grid index of each point as defined by voxelizer
+        u, v = grid_inds[:,1], grid_inds[:,2]
+
+        img_height, img_width = self.grid_size[2],self.grid_size[1]
+        max_range = self.max_bound[0]
+
+        range_image = np.full((img_height, img_width), max_range+100)
+        
+        # order in decreasing depth
+        order = np.argsort(r)[::-1]
+        r = r[order]
+        u = u[order]
+        v = v[order]
+        range_image[v,u] = r
+        assert(np.any(range_image<max_range))
+
+        if return_intensity:
+            intensity_image = np.full((img_height, img_width), 0.0)
+            intensity_image[v,u] = intensity[order]
+            return range_image, intensity_image
+
+        return range_image
+
+    def range2pc(self, range_image, intensity_image=None):
+        """
+        Assuming voxelizer is using spherical coordinates
+        Converts a range image back to a point cloud and an intensity image back to the intensity for each point.
+        intensity_image: shape (img_height, img_width)
+        range_image: shape (img_height, img_width)
+        """
+        # Generate pixel grid for azimuth and elevation angles
+        img_height, img_width = self.grid_size[2], self.grid_size[1]
+        max_range = self.max_bound[0]
+
+        x = np.arange(img_width) #corresponds to azimuth
+        y = np.arange(img_height) #corresponds to elevation
+        u, v = np.meshgrid(x, y)
+
+
+        uv = np.stack((u.reshape(-1), v.reshape(-1)), axis=1)
+        az_elev = ((uv[:, :].astype(np.float32)+0.5) * self.intervals[1:]) + self.min_bound[1:] #### 0.5 is very very important to avoid buggy discretization of the reconstructed point cloud (if no 0.5, some points will overlap during discretization)
+        azimuth, elevation = az_elev[:,0], az_elev[:,1]
+
+        
+        # Get range values
+        r = range_image.reshape(-1)
+
+        # Filter out max_range values (no return)
+        valid_mask = r < max_range + 100
+        r = r[valid_mask]
+        azimuth = azimuth[valid_mask]
+        elevation = elevation[valid_mask]
+
+        points_polar = np.stack((r, azimuth, elevation), axis=1)
+        point_cloud = polar2cart(points_polar, mode="spherical")
+
+        if intensity_image is not None:
+            intensity = intensity_image.flatten()
+            intensity = intensity[valid_mask]
+            point_cloud = np.concatenate((point_cloud, intensity[:, np.newaxis]), axis=1)
+
+        return point_cloud
+
 
 
         
 
 class PolarDataset(data.Dataset):
-  def __init__(self, in_dataset, voxelizer, rotate_aug = False, flip_aug = False, is_test=False, use_voxel_random_mask=False, vis=False, insert=False, use_intensity_grid=False):
+  def __init__(self, in_dataset, voxelizer:Voxelizer, rotate_aug = False, flip_aug = False, is_test=False, use_voxel_random_mask=False, vis=False, insert=False, use_intensity_grid=False, use_range_proj=False):
         '''
         Our pipelines or models directly access this dataset to obtain data. 
         - In_dataset: the dataset that returns a sample of the processed nuscenes data
@@ -596,6 +562,7 @@ class PolarDataset(data.Dataset):
         - IMPORTANT: set use_voxel_random_mask to True if you want to randomly drop some mask over the background voxels
         - insert: am I inserting vehicle or not
         - use_intensity_grid: whether you are using this dataset to train a network that predicts an intensity grid
+        - use_range_proj: whether you are using this dataset to train a network that predicts intensity on a range image
         '''
         'Initialization'
         self.point_cloud_dataset = in_dataset
@@ -617,6 +584,7 @@ class PolarDataset(data.Dataset):
             
         self.insert = insert
         self.use_intensity_grid = use_intensity_grid
+        self.use_range_proj = use_range_proj
         print("polar dataset COORDINATE mode: ", self.mode)
         print("polar dataset use_z: ", self.use_z)
 
@@ -728,6 +696,11 @@ class PolarDataset(data.Dataset):
         if self.use_intensity_grid:
             intensity_grid = self.voxelizer.get_intensity_grid(new_points_xyz_has_bckgrnd, mode=self.mode)
             data_tuple = (has_bckgrnd_data, no_bckgrnd_data, voxel_label_data, intensity_grid)
+        elif self.use_range_proj:
+            range_image, intensity_image = self.voxelizer.pc2range(new_points_xyz_has_bckgrnd[:,:4])
+            range_intensity_data = (range_image, intensity_image)
+            data_tuple = (has_bckgrnd_data, no_bckgrnd_data, voxel_label_data, range_intensity_data)
+            
 
 
         ## visualization
@@ -826,5 +799,37 @@ def collate_fn_BEV_intensity(data):
     intensity_datas = [d[3] for d in data]
     intensity_grid = np.stack(intensity_datas, axis=0) #(B,#r,#theta,#z)
     data_batch = (has, no, voxel_label, BEV_label, torch.from_numpy(intensity_grid))
+
+    return data_batch
+
+def collate_fn_range_intensity(data):
+    has_bckgrnd_datas = [d[0] for d in data]
+    no_bckgrnd_datas = [d[1] for d in data]
+    voxel_datas = [d[2] for d in data]
+
+    voxel_label_list = [d[0] for d in voxel_datas]
+    BEV_label_list = [d[1] for d in voxel_datas]
+    voxel_label = torch.from_numpy(np.stack(voxel_label_list, axis=0)) #(B,#r,#theta,#z)
+    BEV_label = torch.from_numpy(np.stack(BEV_label_list, axis=0)) #(B,#r,#theta)
+
+    voxel_occupancy_has = np.stack([d[3] for d in has_bckgrnd_datas], axis=0) #(B,#r,#theta,#z)
+    voxel_occupancy_no = np.stack([d[3] for d in no_bckgrnd_datas], axis=0) #(B,#r,#theta,#z)
+
+    grid_ind_has = None
+    grid_ind_no = None
+    return_points_has = None
+    return_points_no = None
+    voxel_centers_has = None
+    voxel_centers_no = None
+
+    has = (grid_ind_has, return_points_has, voxel_centers_has, torch.from_numpy(voxel_occupancy_has))
+    no = (grid_ind_no, return_points_no, voxel_centers_no, torch.from_numpy(voxel_occupancy_no))
+
+    range_image_datas = [d[3][0] for d in data]
+    intensity_image_datas = [d[3][1] for d in data]
+    range_images = np.stack(range_image_datas, axis=0)
+    intensity_images = np.stack(intensity_image_datas, axis=0)
+    range_intensity_datas = (torch.from_numpy(range_images), torch.from_numpy(intensity_images))
+    data_batch = (has, no, voxel_label, BEV_label, range_intensity_datas)
 
     return data_batch

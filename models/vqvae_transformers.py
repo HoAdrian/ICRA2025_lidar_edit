@@ -184,6 +184,8 @@ class VQVAETrans(nn.Module):
         return codebook_commitment_loss, z_q, perplexity, min_encodings, min_encoding_indices
 
 
+
+
     def compute_loss(self, x):
         '''
         x: shape (B,in_chans,H,W)
@@ -220,6 +222,23 @@ class VQVAETrans(nn.Module):
         # rec_x = rec_x.reshape(B, C, H, W)
 
         return loss, rec_x, rec_x_logit, perplexity, min_encodings, min_encoding_indices
+
+    def encode_decode_no_quantize(self, x):
+        '''
+        x: shape (B,in_chans,H,W)
+        denote total = H/patch_size*W/patch_size
+
+        no quantize
+
+        output:
+        - rec_x_logit: (B,in_chans,H,W)
+        '''
+        B, _, _, _ = x.shape
+        
+        z_e = self.encoder(x) #(B, total, codebook_dim)
+        rec_x_logit = self.decoder(z_e) #(B,in_chans,H,W)
+
+        return rec_x_logit
     
     def compute_intensity_loss(self, x, y):
         '''
@@ -227,8 +246,9 @@ class VQVAETrans(nn.Module):
         y: shape (B,in_chans,H,W), y should be the ground truth intensity grid
 
         compute the loss of reconstructed intensity (Note: intensity at empty voxel is zero)
+        rec x logit is regressed to be between 0 and 255 as intensity value
         '''
-        rec_x_logit, codebook_commitment_loss, perplexity, min_encodings, min_encoding_indices = self.forward(x)
+        rec_x_logit = self.encode_decode_no_quantize(x)
         B,C,H,W = x.shape
         rec_x_logit = rec_x_logit #.sigmoid() #normalized intensity
 
@@ -236,27 +256,24 @@ class VQVAETrans(nn.Module):
         # on average, the occupancy ratio of grid cells is 0.002
         # avg_dataset_occupancy_ratio = 0.002
         # weight = (1-avg_dataset_occupancy_ratio)/avg_dataset_occupancy_ratio*0.01
-        with torch.no_grad():
-            batch_occupancy_ratio = (torch.sum(x)/(B*C*H*W)).item()
-            weight = (1-batch_occupancy_ratio)/batch_occupancy_ratio*0.02#*0.01
-            # print("batch_occupancy_ratio: ", batch_occupancy_ratio)
-            # print("pos weight: ", weight)
-       
-        positive_class_mask = (x>0) # upweigh occupied voxels (not nonzero intensity)
-        negative_class_mask = (x<=0)
-        rec_loss_pos = torch.mean((y[positive_class_mask] - rec_x_logit[positive_class_mask])**2)
-        rec_loss_neg = torch.mean((y[negative_class_mask] - rec_x_logit[negative_class_mask])**2)
+        # with torch.no_grad():
+        #     batch_occupancy_ratio = (torch.sum(x)/(B*C*H*W)).item()
+        #     weight = (1-batch_occupancy_ratio)/batch_occupancy_ratio*0.02#*0.01
+        #     # print("batch_occupancy_ratio: ", batch_occupancy_ratio)
+        #     # print("pos weight: ", weight)
+        # positive_class_mask = (x>0) # upweigh occupied voxels (not nonzero intensity)
+        # negative_class_mask = (x<=0)
+        # rec_loss_pos = torch.mean((y[positive_class_mask] - rec_x_logit[positive_class_mask])**2)
+        # rec_loss_neg = torch.mean((y[negative_class_mask] - rec_x_logit[negative_class_mask])**2)
+        # loss = weight*rec_loss_pos + rec_loss_neg
+        # with torch.no_grad():
+        #     print(f"########### FFFFFFFFFFF ######### fraction nonzero intensity/totol num cell:  {torch.sum(y>50)/torch.sum(x!=0)}")
+        #weight = torch.sum(y>50)/torch.sum(x!=0)
+        occupied_logit = rec_x_logit[x!=0]
+        occupied_ground_truth_intensity = y[x!=0]
+        loss = torch.mean((occupied_ground_truth_intensity+0.1)*((occupied_ground_truth_intensity - occupied_logit)**2))
         
-        loss = weight*rec_loss_pos + rec_loss_neg + codebook_commitment_loss
-        
-        rec_x = (rec_x_logit).float()
-
-        # rec_x_logit = rec_x_logit.reshape(B, -1)
-        # rec_x = (torch.nn.functional.gumbel_softmax(rec_x_logit, tau=2)>=0.01).float()
-        # print(rec_x)
-        # rec_x = rec_x.reshape(B, C, H, W)
-
-        return loss, rec_x, rec_x_logit, perplexity, min_encodings, min_encoding_indices
+        return loss, rec_x_logit
 
 
         

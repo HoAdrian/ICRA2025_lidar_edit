@@ -18,6 +18,7 @@ import torch
 import configs.nuscenes_config as config
 
 from models.vqvae_transformers import VQVAETrans, MaskGIT, voxels2points
+from models.unet import UNet
 import open3d
 import pickle
 
@@ -38,7 +39,7 @@ if __name__=="__main__":
     parser.add_argument('--dense', type=int, help="whether to use dense point cloud from point cloud completion")
     parser.add_argument('--maskgit_path', type=str, help="path to the trained maskGIT's weights of a specific epoch")
     parser.add_argument('--vqvae_path', type=str, help="path to the trained vqvae's weights of a specific epoch")
-    parser.add_argument('--intensity_vqvae_path', type=str, help="path to the trained intensity vqvae's weights of a specific epoch")
+    parser.add_argument('--intensity_model_path', type=str, help="path to the trained intensity model's weights of a specific epoch")
     parser.add_argument('--save_lidar_path', type=str, help="path to the root to save the dictionary and lidar point clouds, must be a full path")
     parser.add_argument('--split', type=str, help="train/val")
     args = parser.parse_args()
@@ -89,7 +90,8 @@ if __name__=="__main__":
     ).to(device)
     vqvae.load_state_dict(torch.load(args.vqvae_path)["model_state_dict"])
 
-    intensity_vqvae = VQVAETrans(
+    ################# intensity vqvae
+    intensity_model = VQVAETrans(
         img_size=voxelizer.grid_size[0:2],
         in_chans=voxelizer.grid_size[2],
         patch_size=patch_size,
@@ -103,7 +105,10 @@ if __name__=="__main__":
         device=device,
         dead_limit=dead_limit
     ).to(device)
-    intensity_vqvae.load_state_dict(torch.load(args.intensity_vqvae_path)["model_state_dict"])
+    intensity_model.load_state_dict(torch.load(args.intensity_model_path)["model_state_dict"])
+
+
+    ############### intensity unet
 
     maskgit_config = config.maskgit_trans_config
     mask_git = MaskGIT(vqvae=vqvae, voxelizer=voxelizer, hidden_dim=maskgit_config["hidden_dim"], depth=maskgit_config["depth"], num_heads=maskgit_config["num_heads"]).to(device)
@@ -170,13 +175,18 @@ if __name__=="__main__":
         allocentric_dict[name][12] = np.array(allocentric_dict[name][12])
 
     start_time = timeit.default_timer()
+    count_all_fail_scene = 0 #### count how many scenes have no insertions successful
+    count_failure_types_scene = np.array([0,0]) #### count how many scenes have the failure modes
     ####### TODO: continue collecting
     #samples = samples[500:] # at 247| 4593| start from 2400 to 3000
     #samples = [6016,6017,6018]#samples[2400:3000]
     #samples = samples[2200:]
     #samples = samples[2600:]
-    #samples = samples[52:]
+    #samples = samples[116:]
+    samples = [196, 296]
     for k in samples:
+        #k = 40
+        #k = 66
         #k = 240
         ### nice scene
         #k =  62#48#39 #42
@@ -186,11 +196,18 @@ if __name__=="__main__":
         #k = 44
         #k = 60
         #k = 79
+        #k = 14
         #k = 16 #14 collide with inpainted points
         #k = 7
         #k = 17
         #k = 44 #bus, truck, car
         #k = 52 # weird bus
+        #k = 14
+        #104 have bus and trucks
+        #k = 112
+        #trainval:val split: good bus: k = 196
+        #                    good truck: k=296
+        #mini: val split: good 
         print(f"NOTE: =============== currently at Sample {k} =========================")
         return_from_data = dataset.__getitem__(k)
         if return_from_data is None:
@@ -199,7 +216,8 @@ if __name__=="__main__":
         count_orig_vehicle = count_vehicle_name_in_box_list(dataset.nonempty_boxes, vehicle_names_dict=vehicle_names)
         count_car, count_bus, count_truck = count_orig_vehicle["car"], count_orig_vehicle["bus"], count_orig_vehicle["truck"]
         logging.info("counting ...??? ", count_orig_vehicle)
-        # if count_bus==0:# and count_truck==0:
+        # if count_bus==0 or count_truck==0:
+        # if count_truck==0:
         #     print("SKIP NO BUS and TRUCK SAMPLES... ")
         #     continue
 
@@ -232,9 +250,6 @@ if __name__=="__main__":
             else:
                 raise Exception("Invalid method idx")
         
-        # voxels_occupancy_list = [voxels_occupancy_has[0].permute(1,2,0)] + [gen_voxels[0].permute(1,2,0) for gen_voxels in gen_binary_voxels_list]
-        # points_list = [voxels2points(voxelizer, voxels_occupancy_has, mode=mode)[0]] + [voxels2points(voxelizer, gen_voxels, mode=mode)[0] for gen_voxels in gen_binary_voxels_list]
-        # names_list = ["original"] + [f"{name}" for name in method_names]
         # voxels_occupancy_no_copy = torch.clone(voxels_occupancy_no)
         # voxels_occupancy_no_copy[voxels_mask.permute(0,3,1,2)==1] = 0
         # voxels_occupancy_list = [voxels_occupancy_has[0].permute(1,2,0), voxels_occupancy_no_copy[0].permute(1,2,0)] + [gen_voxels[0].permute(1,2,0) for gen_voxels in gen_binary_voxels_list]
@@ -252,6 +267,8 @@ if __name__=="__main__":
             voxels_occupancy_has = gen_grid.permute(0,2,3,1)
 
             inpainted_points  = voxels2points(voxelizer, gen_grid, mode=mode)[0]
+
+            
             
             #### Insert objects
             if method_names[method_idx] != "reconstruct":
@@ -259,16 +276,31 @@ if __name__=="__main__":
                 inpainted_voxels_masked = torch.where(voxels_mask==1, voxels_occupancy_has, 0)
                 inpainted_points_masked = voxels2points(voxelizer, inpainted_voxels_masked.permute(0,3,1,2), mode=mode)[0]
 
+                # print("VISUALIZING masked inpainted POINT CLOUD HERE.......") 
+                # pcd = open3d.geometry.PointCloud()
+                # pcd.points = open3d.utility.Vector3dVector(np.array(inpainted_points_masked))
+                # pcd_colors = np.tile(np.array([[0,0,1]]), (len(inpainted_points_masked), 1))
+                # pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
+                # mat = open3d.visualization.rendering.MaterialRecord()
+                # mat.shader = 'defaultUnlit'
+                # mat.point_size = 2.0
+                # open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
+
                 #### insert at original positions
-                new_scene_points_xyz, new_bboxes, token2sample_dict, new_occupancy, original_vehicle_boxes = insertion_vehicles_driver(inpainted_points_masked, inpainted_points, allocentric_dict, voxels_occupancy_has, insert_vehicle_names, dataset, voxelizer, token2sample_dict_list[method_idx], args, lidar_path_list[method_idx], mode=mode)
+                new_scene_points_xyz, new_bboxes, token2sample_dict, new_occupancy, original_vehicle_boxes, new_points_with_intensity, count_success_insertion, count_failure_types = insertion_vehicles_driver(intensity_model, inpainted_points_masked, inpainted_points, allocentric_dict, voxels_occupancy_has, insert_vehicle_names, dataset, voxelizer, token2sample_dict_list[method_idx], args, lidar_path_list[method_idx], mode=mode)
                 
                 #### insert at perturbed original positions
-                #new_scene_points_xyz, new_bboxes, token2sample_dict, new_occupancy, original_vehicle_boxes = insertion_vehicles_driver_perturbed(inpainted_points_masked, inpainted_points, allocentric_dict, voxels_occupancy_has, insert_vehicle_names, dataset, voxelizer, token2sample_dict_list[method_idx], args, lidar_path_list[method_idx], mode=mode)
+                #new_scene_points_xyz, new_bboxes, token2sample_dict, new_occupancy, original_vehicle_boxes, new_points_with_intensity, count_success_insertion, count_failure_types = insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked, inpainted_points, allocentric_dict, voxels_occupancy_has, insert_vehicle_names, dataset, voxelizer, token2sample_dict_list[method_idx], args, lidar_path_list[method_idx], mode=mode)
                 
             else:
+                assert(1==0)
                 new_scene_points_xyz, new_bboxes = save_reconstruct_data(gen_grid, dataset, voxelizer, token2sample_dict_list[method_idx], args, lidar_path_list[method_idx], mode="spherical")
 
-            
+            count_all_fail_scene += int(count_success_insertion==0)
+            count_failure_types_scene += (np.array(count_failure_types)!=0).astype(np.int64)
+
+            print(f"+++|| count number of scenes with no successful insertion: {count_all_fail_scene}")
+            print(f"+++|| count number of scenes with the specified failure mode occuring: {count_failure_types_scene}")
             
             if k%200==0 or k==samples[-1]:
                 save_lidar_path = lidar_path_list[method_idx]
@@ -356,13 +388,6 @@ if __name__=="__main__":
             #     line_set.colors = open3d.utility.Vector3dVector(colors)
             #     visboxes.append(line_set)
             # open3d.visualization.draw_geometries([pcd, ground_pcd]+visboxes)
-
-            # mat = open3d.visualization.rendering.MaterialRecord()
-            # mat.shader = 'defaultUnlit'
-            # mat.point_size = 3.0
-            # open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
-
-
             
     end_time = timeit.default_timer()
     print("HEYYYO: time used for generating insertion dataset: ", end_time-start_time, "seconds")
