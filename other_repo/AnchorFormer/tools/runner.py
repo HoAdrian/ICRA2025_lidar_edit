@@ -13,6 +13,94 @@ from extensions.chamfer_dist import ChamferDistanceL1, ChamferDistanceL2
 import open3d
 from datasets.data_transforms import NormalizeObjectPose
 
+def visualize_rotating_open3d_objects(open3d_objects, offsets=[[0.1,0,0]], shift_to_centroid=True, 
+                                      rotation_axis = np.array([0, 0, 1]), rotation_speed_deg=1,
+                                      cam_position=None, cam_target=None, 
+                                      cam_up_vector=None, zoom=None):
+                                      
+    """ 
+    rotation_axis: The rotation axis (for example, [0, 0, 1] for Z-axis).
+    num_frames: Number of frames for a full rotation.
+    rotation_speed_deg: Rotation speed in degrees per frame.
+    offset: how much each object is shifted.
+    """
+
+    for i, obj in enumerate(open3d_objects):
+        if isinstance(obj, open3d.geometry.TriangleMesh):
+            obj.compute_vertex_normals()
+            if shift_to_centroid:
+                obj.translate(-np.mean(np.asarray(obj.vertices), axis=0))
+                    
+        elif isinstance(obj, open3d.geometry.PointCloud):    
+            
+            if shift_to_centroid:
+                print("Great, point cloud ( <0> A <0> )")
+                obj.translate(-np.mean(np.asarray(obj.points), axis=0))
+        else:
+            raise ValueError("Invalid open3d object. Can only be either open3d mesh, or open3d point cloud.")            
+            
+        # if len(offsets) == 1:
+        #     obj.translate(tuple(i*np.array(offsets[0])))
+        # elif len(offsets) == len(open3d_objects):
+        #     obj.translate(tuple(offsets[i]))
+        # else:
+        #     raise ValueError("Invalid offsets array. len(offsets) must either = 1, or = len(open3d_objects)")  
+        
+    # Convert the rotation speed to radians per frame
+    rotation_speed_rad = np.radians(rotation_speed_deg)
+
+    # Create a visualization window
+    vis = open3d.visualization.Visualizer()
+    vis.create_window()
+
+    mat = open3d.visualization.rendering.MaterialRecord()
+    mat.shader = 'defaultUnlit'
+    mat.point_size = 3.0
+
+    # Add the object to the visualization
+    for open3d_object in open3d_objects:
+        vis.add_geometry(open3d_object)
+
+    vis.get_render_option().point_size = mat.point_size
+
+    ### Change viewing angle and zoom
+    if cam_position is not None and cam_target is not None and cam_up_vector is not None:
+        front = cam_position  # Camera direction 
+        lookat = cam_target  # Camera target point 
+        view_control = vis.get_view_control()
+        view_control.set_front(front)
+        view_control.set_lookat(lookat)
+        view_control.set_up(cam_up_vector)  # Set the camera up vector
+    if zoom is not None:
+        view_control.set_zoom(zoom)
+        
+            
+    # Continuous rotation animation loop
+    while True:  # Infinite loop for continuous rotation
+        for obj in open3d_objects:
+            # Calculate the rotation center as the local center of the current object
+            rotation_center = obj.get_center()
+
+            # Create a rotation matrix for the current angle
+            rotation_matrix = np.eye(4)
+            rotation_matrix[:3, :3] = np.array([
+                [np.cos(rotation_speed_rad), -np.sin(rotation_speed_rad), 0],
+                [np.sin(rotation_speed_rad), np.cos(rotation_speed_rad), 0],
+                [0, 0, 1]
+            ])
+            
+            # Apply the rotation to the current object around its local center
+            obj.translate(-rotation_center)  # Move object to origin
+            obj.transform(rotation_matrix)    # Rotate
+            obj.translate(rotation_center)    # Move back to center
+        
+        # Update the visualization
+        for open3d_object in open3d_objects:
+            vis.update_geometry(open3d_object)
+        vis.poll_events()
+        vis.update_renderer()
+
+
 def run_net(args, config, train_writer=None, val_writer=None):
     logger = get_logger(args.log_name)
     # Build Dataset
@@ -495,7 +583,7 @@ def test(base_model, test_dataloader, ChamferDisL1, ChamferDisL2, test_writer, a
 
                     print("HHHHHHHHIIIIIIIIIIIIIIIIIIIIIIi")
 
-                    save_root = f"/home/shinghei/lidar_generation/our_ws/foreground_object_pointclouds/dense_nusc/{category_foldername}"
+                    save_root = f"/home/shinghei/lidar_generation/Lidar_generation/foreground_object_pointclouds/dense_nusc/{category_foldername}"
                     os.makedirs(save_root, exist_ok=True)
 
                     ### convert the transformed point cloud back to the original coordinate system
@@ -506,7 +594,8 @@ def test(base_model, test_dataloader, ChamferDisL1, ChamferDisL2, test_writer, a
                     unnormalized_partial = NormalizeObjectPose.inverse(ptcloud=partial[0].cpu().numpy(), bbox=original_bbox)
                     unnormalized_dense = NormalizeObjectPose.inverse(ptcloud=dense_points[0].cpu().numpy(), bbox=original_bbox)
 
-                    if category_foldername=="car" or True:
+                    if True:#category_foldername=="car" or category_foldername=="bus":
+                        print(f"category folder: ", category_foldername)
                         # save input pcd
                         pcd_sparse = open3d.geometry.PointCloud()
                         pcd_sparse.points = open3d.utility.Vector3dVector(unnormalized_partial)
@@ -515,8 +604,41 @@ def test(base_model, test_dataloader, ChamferDisL1, ChamferDisL2, test_writer, a
                         pcd_dense = open3d.geometry.PointCloud()
                         pcd_dense.points = open3d.utility.Vector3dVector(unnormalized_dense)
 
-                        # open3d.visualization.draw_geometries([pcd_dense, pcd_sparse.translate((1,0,0))]) 
+                        print(len(unnormalized_partial))
+                        print(len(unnormalized_dense))
+
+                        # open3d.visualization.draw_geometries([pcd_dense]) 
+                        # open3d.visualization.draw_geometries([pcd_sparse]) 
                         #open3d.visualization.draw_geometries([pcd_dense, pcd_sparse.translate((8,0,0))]) 
+
+
+                        # lines = [[0, 1], [1, 2], [2, 3], [0, 3],
+                        #         [4, 5], [5, 6], [6, 7], [4, 7],
+                        #         [0, 4], [1, 5], [2, 6], [3, 7]]
+                        # visboxes = []
+                        # for box in [original_bbox]:
+                        #     line_set = open3d.geometry.LineSet()
+                        #     line_set.points = open3d.utility.Vector3dVector(box)
+                        #     line_set.lines = open3d.utility.Vector2iVector(lines)
+                        #     colors = [[1, 0, 0] for _ in range(len(lines))]
+                        #     line_set.colors = open3d.utility.Vector3dVector(colors)
+                        #     visboxes.append(line_set)
+
+                        # open3d.visualization.draw_geometries([pcd_sparse]+visboxes)
+                        # open3d.visualization.draw_geometries([pcd_dense]+visboxes)
+
+                        # if category_foldername=="truck" and sample_num=='50':
+                        # #if category_foldername=="car":
+                        # #if category_foldername=="car" and sample_num=='20':
+                        #     visualize_rotating_open3d_objects([pcd_dense], offsets=[[0.1,0,0]], shift_to_centroid=True, 
+                        #                 rotation_axis = np.array([0, 0, 1]), rotation_speed_deg=0.45,
+                        #                 cam_position=np.array([1.0, 0.0, 1.0]), cam_target=np.array([0.0, 0.0, 0.0]), 
+                        #                 cam_up_vector=np.array([0.0, 0.0,  1.0]), zoom=0.8)
+
+                        # if category_foldername=="bus":
+                        #     open3d.visualization.draw_geometries([pcd_dense]) 
+                        #     open3d.visualization.draw_geometries([pcd_sparse]) 
+                        #     open3d.visualization.draw_geometries([pcd_dense, pcd_sparse.translate((8,0,0))]) 
 
                         open3d.io.write_point_cloud(f"{save_root}/sample_{sample_num}.pcd",pcd_dense)
 

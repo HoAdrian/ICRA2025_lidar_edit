@@ -117,6 +117,7 @@ def main():
     tb_log = SummaryWriter(log_dir=str(output_dir / 'tensorboard')) if cfg.LOCAL_RANK == 0 else None
 
     logger.info("----------- Create dataloader & network & optimizer -----------")
+    print("################ HIIIIIII build data loader for training")
     train_set, train_loader, train_sampler = build_dataloader(
         dataset_cfg=cfg.DATA_CONFIG,
         class_names=cfg.CLASS_NAMES,
@@ -128,11 +129,14 @@ def main():
         total_epochs=args.epochs,
         seed=666 if args.fix_random_seed else None
     )
+    print("################ HIIIIIII build network for training")
 
     model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=train_set)
     if args.sync_bn:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model.cuda()
+
+    print("################ HIIIIIII build optimizer")
 
     optimizer = build_optimizer(model, cfg.OPTIMIZATION)
 
@@ -144,6 +148,7 @@ def main():
 
     if args.ckpt is not None:
         it, start_epoch = model.load_params_with_optimizer(args.ckpt, to_cpu=dist_train, optimizer=optimizer, logger=logger)
+        print(f"!!!!!!!!BUUUUUUUUUU start epoch: {start_epoch}")
         last_epoch = start_epoch + 1
     else:
         ckpt_list = glob.glob(str(ckpt_dir / '*.pth'))
@@ -166,10 +171,18 @@ def main():
     logger.info(f'----------- Model {cfg.MODEL.NAME} created, param count: {sum([m.numel() for m in model.parameters()])} -----------')
     logger.info(model)
 
+    print("################ HIIIIIII build scheduler for training")
+    # print(type(train_loader))
+    # len(train_loader)
+    # len(train_loader)
+    # len(train_loader)
+    print("I am printing the len of train loader before building scheduler: ", len(train_loader))
     lr_scheduler, lr_warmup_scheduler = build_scheduler(
         optimizer, total_iters_each_epoch=len(train_loader), total_epochs=args.epochs,
         last_epoch=last_epoch, optim_cfg=cfg.OPTIMIZATION
     )
+    print("I am printing the len of train loader before building scheduler: ", len(train_loader))
+    print("################ HIIIIIII finish build network for training")
 
     # -----------------------start training---------------------------
     logger.info('**********************Start training %s/%s(%s)**********************'

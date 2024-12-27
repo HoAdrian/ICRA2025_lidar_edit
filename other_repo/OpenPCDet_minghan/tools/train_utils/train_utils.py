@@ -160,7 +160,10 @@ def train_model(model, optimizer, train_loader, model_func, lr_scheduler, optim_
 
     with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True, leave=(rank == 0)) as tbar:
         total_it_each_epoch = len(train_loader)
+        print("______ len(train loader)", len(train_loader))
+        print("-----@@ total it each epoch: ,", total_it_each_epoch)
         if merge_all_iters_to_one_epoch:
+            print("MERGE TO ONE EPOCH ???????????? ")
             assert hasattr(train_loader.dataset, 'merge_all_iters_to_one_epoch')
             train_loader.dataset.merge_all_iters_to_one_epoch(merge=True, epochs=total_epochs)
             total_it_each_epoch = len(train_loader) // max(total_epochs, 1)

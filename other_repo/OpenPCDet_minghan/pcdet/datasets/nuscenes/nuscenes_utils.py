@@ -309,6 +309,7 @@ def obtain_sensor2top(
     return sweep
 
 import pickle
+import time
 def fill_trainval_infos(data_path, nusc, train_scenes, val_scenes, test=False, max_sweeps=10, with_cam=False, replace_with_mine_path=None):
     train_nusc_infos = []
     val_nusc_infos = []
@@ -332,10 +333,14 @@ def fill_trainval_infos(data_path, nusc, train_scenes, val_scenes, test=False, m
     with open(path, 'rb') as handle:
         token2sample_dict = pickle.load(handle)
 
+    overlap = 0
     for index, sample in enumerate(nusc.sample):
-        if replace_with_mine_path is None:
-            if len(train_nusc_infos)>=1000:
-                break
+        # if replace_with_mine_path is None:
+        #     if len(train_nusc_infos)>=28130//2:#3000: #1000
+        #         break
+        # elif len(train_nusc_infos)>=28130//2:#6000: #1000
+        #     break
+
         #print(sample['scene_token'] in train_scenes)
         progress_bar.update()
 
@@ -345,14 +350,23 @@ def fill_trainval_infos(data_path, nusc, train_scenes, val_scenes, test=False, m
         ref_pose_rec = nusc.get('ego_pose', ref_sd_rec['ego_pose_token'])
         ref_time = 1e-6 * ref_sd_rec['timestamp']
 
-        if replace_with_mine_path is None and ref_sd_token in token2sample_dict:
-            continue
+        #### for concatenatibg our data with nusc data finetuning
+        # if replace_with_mine_path is None and ref_sd_token in token2sample_dict:
+        #     overlap+=1
+        #     print("skipping overlap.....")
+        #     continue
+
+        ######### For only using token in our data to compare with nusc data
+        # if replace_with_mine_path is None and ref_sd_token not in token2sample_dict and sample['scene_token'] in train_scenes:
+        #     print("ONLY USE OVERLAP, skip non-overlap.....")
+        #     continue
 
         ref_lidar_path, ref_boxes, _ = get_sample_data(nusc, ref_sd_token)
 
-        # if replace_with_mine_path is None:
-        #     if ref_sd_token in token2sample_dict:
-        #         continue
+        ###### for finetuning
+        if replace_with_mine_path is None:
+            if ref_sd_token in token2sample_dict:
+                continue
         
         if replace_with_mine_path is not None:
             if ref_sd_token not in token2sample_dict:

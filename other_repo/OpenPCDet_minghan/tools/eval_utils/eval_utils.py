@@ -123,10 +123,10 @@ def eval_one_epoch(cfg, args, model, dataloader, epoch_id, logger, dist_test=Fal
         pickle.dump(det_annos, f)
 
     #dataset.version = "v1.0-mini"
-    print("det annos------------")
-    print(det_annos)
-    print("class_names================")
-    print(class_names)
+    # print("det annos------------")
+    # print(det_annos)
+    # print("class_names================")
+    # print(class_names)
 
 
     result_str, result_dict = dataset.evaluation(

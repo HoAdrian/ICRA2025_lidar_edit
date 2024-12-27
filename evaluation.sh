@@ -17,8 +17,8 @@ vqvae_epoch=60
 maskgit_epoch=36
 
 ################### mini dataset for prototyping
-version="v1.0-mini"
-dataset_path="./data/nuscenes/v1.0-mini"
+# version="v1.0-mini"
+# dataset_path="./data/nuscenes/v1.0-mini"
 # vqvae_path="./weights/vqvae_trans_weights"
 # maskgit_path="./weights/maskgit_trans_weights_mini"
 # vqvae_epoch=60
@@ -42,5 +42,4 @@ echo "DATASET_PATH: $dataset_path"
 
 
 python evaluation/histogram_evaluate_allocentric_compare.py --trainval_data_path=$dataset_path --data_version=$version --vqvae_path="$vqvae_path/epoch_$vqvae_epoch" --maskgit_path="$maskgit_path/epoch_$maskgit_epoch" --figures_path="./figures/maskgit_trans" --blank_code_path="." --blank_code_name="blank_code" --gen_blank_code=True
-
-# python evaluation/save_pc_for_feat_diff.py --trainval_data_path=$dataset_path --data_version=$version --vqvae_path="$vqvae_path/epoch_$vqvae_epoch" --maskgit_path="$maskgit_path/epoch_$maskgit_epoch" --figures_path="./figures/maskgit_trans" --blank_code_path="." --blank_code_name="blank_code" --gen_blank_code=True
+python evaluation/save_pc_for_feat_diff.py --trainval_data_path=$dataset_path --data_version=$version --vqvae_path="$vqvae_path/epoch_$vqvae_epoch" --maskgit_path="$maskgit_path/epoch_$maskgit_epoch" --figures_path="./figures/maskgit_trans" --blank_code_path="." --blank_code_name="blank_code" --gen_blank_code=True

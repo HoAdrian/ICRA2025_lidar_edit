@@ -9,9 +9,17 @@ import torch
 from tensorboardX import SummaryWriter
 
 '''
+Testing: 
 CUDA_VISIBLE_DEVICES=0 python main.py --ckpts anchorformer_dict.pth --config ./cfgs/PCN_models/AnchorFormer.yaml --exp_name test_ckpt --test
 CUDA_VISIBLE_DEVICES=0 python main.py --ckpts anchorformer_dict.pth --config ./cfgs/custom_models/AnchorFormer.yaml --exp_name test_ckpt --test
 CUDA_VISIBLE_DEVICES=0 python main.py --ckpts anchorformer_dict.pth --config ./cfgs/KITTI_models/AnchorFormer.yaml --exp_name train_kitti_ckpt --test
+
+Training: 
+CUDA_VISIBLE_DEVICES=0 python main.py --ckpts anchorformer_dict.pth --config ./cfgs/KITTI_models/AnchorFormer.yaml --exp_name train_kitti_ckpt --test
+
+CUDA_VISIBLE_DEVICES=0 WORLD_SIZE=1 python -m torch.distributed.launch --node_rank=0 --nnodes=1 --master_port=13232 --nproc_per_node=1 main.py --launcher pytorch --sync_bn --config ./cfgs/ShapeNet55_models/AnchorFormer.yaml --exp_name try_to_train_anchorformer --val_freq 10 --val_interval 50 
+CUDA_VISIBLE_DEVICES=0 python --config ./cfgs/ShapeNet55_models/AnchorFormer.yaml --tfboard_path shapenet_tfboard/ --exp_name try_to_train_anchorformer --val_freq 10 --val_interval 50 
+
 '''
 
 def main():

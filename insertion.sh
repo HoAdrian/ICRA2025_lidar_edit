@@ -42,8 +42,8 @@ root="/home/shinghei/lidar_generation/OpenPCDet_minghan/data/nuscenes/${version}
 
 # split="train"
 # python actor_insertion/generate_raw_dict.py --trainval_data_path=$dataset_path --data_version=$version --save_lidar_path="$root"/raw/"$version" --split=$split
-split="val"
-python actor_insertion/generate_raw_dict.py --trainval_data_path=$dataset_path --data_version=$version --save_lidar_path="$root"/ours/"$version" --split=$split
+# split="val"
+#python actor_insertion/generate_raw_dict.py --trainval_data_path=$dataset_path --data_version=$version --save_lidar_path="$root"/ours/"$version" --split=$split
 # split="train"
 # python actor_insertion/generate_no_obj_dict.py --trainval_data_path=$dataset_path --data_version=$version --vqvae_path="$vqvae_path/epoch_$vqvae_epoch" --maskgit_path="$maskgit_path/epoch_$maskgit_epoch" --save_lidar_path="$root"/no_obj/"$version" --split=$split
 # split="val"
@@ -58,12 +58,13 @@ python actor_insertion/generate_raw_dict.py --trainval_data_path=$dataset_path -
 # split="val"
 # python actor_insertion/get_nice_figures.py --trainval_data_path=$dataset_path --data_version=$version --pc_path="./foreground_object_pointclouds" --dense=$dense --vqvae_path="$vqvae_path/epoch_$vqvae_epoch" --maskgit_path="$maskgit_path/epoch_$maskgit_epoch" --save_lidar_path=$root --split=$split
 
-intensity_model_path="./weights/intensity_vqvae_weights"
-intensity_vqvae_epoch=10 #40 #12
-echo "INTENSITY MODEL PATH: ${intensity_model_path}"
-split="val"
-python actor_insertion/generate_insert_obj_dict_baselines.py --trainval_data_path=$dataset_path --data_version=$version --pc_path="./foreground_object_pointclouds_handpicked" --dense=$dense --vqvae_path="$vqvae_path/epoch_$vqvae_epoch" --maskgit_path="$maskgit_path/epoch_$maskgit_epoch" --save_lidar_path=$root --split=$split --intensity_model_path="$intensity_model_path/epoch_$intensity_vqvae_epoch"
-python actor_insertion/generate_insert_obj_dict_baselines.py --trainval_data_path=$dataset_path --data_version=$version --pc_path="./foreground_object_pointclouds" --dense=$dense --vqvae_path="$vqvae_path/epoch_$vqvae_epoch" --maskgit_path="$maskgit_path/epoch_$maskgit_epoch" --save_lidar_path=$root --split=$split --intensity_model_path="$intensity_model_path/epoch_$intensity_vqvae_epoch"
+# intensity_model_path="./weights/intensity_vqvae_weights"
+# intensity_vqvae_epoch=16 #40 #12
+# echo "INTENSITY MODEL PATH: ${intensity_model_path}"
+# split="val"
+# #split="train"
+# #python actor_insertion/generate_insert_obj_dict_baselines.py --trainval_data_path=$dataset_path --data_version=$version --pc_path="./foreground_object_pointclouds_handpicked" --dense=$dense --vqvae_path="$vqvae_path/epoch_$vqvae_epoch" --maskgit_path="$maskgit_path/epoch_$maskgit_epoch" --save_lidar_path=$root --split=$split --intensity_model_path="$intensity_model_path/epoch_$intensity_vqvae_epoch"
+# python actor_insertion/generate_insert_obj_dict_baselines.py --trainval_data_path=$dataset_path --data_version=$version --pc_path="./foreground_object_pointclouds" --dense=$dense --vqvae_path="$vqvae_path/epoch_$vqvae_epoch" --maskgit_path="$maskgit_path/epoch_$maskgit_epoch" --save_lidar_path=$root --split=$split --intensity_model_path="$intensity_model_path/epoch_$intensity_vqvae_epoch"
 
 
 

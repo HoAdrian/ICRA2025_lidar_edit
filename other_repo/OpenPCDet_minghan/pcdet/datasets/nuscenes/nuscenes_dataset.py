@@ -42,7 +42,7 @@ class NuScenesDataset(DatasetTemplate):
             print("info path: >>>>>>>>>>>>>", info_path)
             assert(os.path.exists(info_path))
             if not info_path.exists():
-                print("FUCK YOUUUUUUUUUUUUUUUUUUUU")
+                print("path not exist")
                 continue
             with open(info_path, 'rb') as f:
                 infos = pickle.load(f)
@@ -69,6 +69,10 @@ class NuScenesDataset(DatasetTemplate):
         duplicated_samples = sum([len(v) for _, v in cls_infos.items()])
         cls_dist = {k: len(v) / duplicated_samples for k, v in cls_infos.items()}
 
+        print("before balanced sampling: ", {k: len(v) for k, v in cls_infos.items()}, "\n")
+        print("before balanced sampling dist: ", cls_dist, "\n")
+        print("sum prob: ", sum([v for k,v in cls_dist.items()]))
+
         sampled_infos = []
 
         frac = 1.0 / len(self.class_names)
@@ -86,7 +90,17 @@ class NuScenesDataset(DatasetTemplate):
                 if name in self.class_names:
                     cls_infos_new[name].append(info)
 
-        cls_dist_new = {k: len(v) / len(sampled_infos) for k, v in cls_infos_new.items()}
+        #cls_dist_new = {k: len(v) / len(sampled_infos) for k, v in cls_infos_new.items()}
+
+        duplicated_samples = sum([len(v) for _, v in cls_infos_new.items()])
+        cls_dist_new = {k: len(v) / (duplicated_samples) for k, v in cls_infos_new.items()}
+        
+
+        print("after balanced sampling: ", {k: len(v) for k, v in cls_infos_new.items()}, "\n")
+        print("after balanced sampling dist: ", cls_dist_new, "\n")
+        print("new sum prob", sum([v for k,v in cls_dist_new.items()]))
+
+        #raise Exception("HAHA sampling debugging")
 
         return sampled_infos
 
@@ -110,7 +124,7 @@ class NuScenesDataset(DatasetTemplate):
         info = self.infos[index]
         lidar_path = self.root_path / info['lidar_path']
         points = np.fromfile(str(lidar_path), dtype=np.float32, count=-1).reshape([-1, 5])[:, :4]
-        #points[:,3] = 0.0
+        points[:,3] = 0.0
         # print("max intensity: ", np.max(points[:,3]))
         # print("min intensity: ", np.min(points[:,3]))
 
@@ -312,7 +326,11 @@ class NuScenesDataset(DatasetTemplate):
             output_dir=str(output_path),
             verbose=True,
         )
-        num_plots = 0
+        # if "18616ac104ee4f92b6127dc67bb85f0b" not in nusc_eval.sample_tokens:
+        #     assert(1==0)
+        # for i in range(len(nusc_eval.sample_tokens)):
+        #     nusc_eval.sample_tokens[i] = ("18616ac104ee4f92b6127dc67bb85f0b")
+        num_plots = 10 #1000
         metrics_summary = nusc_eval.main(plot_examples=num_plots, render_curves=False)
 
         with open(output_path / 'metrics_summary.json', 'r') as f:

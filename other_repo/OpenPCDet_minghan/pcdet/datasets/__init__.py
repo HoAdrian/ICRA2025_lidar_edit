@@ -51,7 +51,7 @@ class DistributedSampler(_DistributedSampler):
         assert len(indices) == self.num_samples
 
         return iter(indices)
-
+import time
 
 def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None, workers=4, seed=None,
                      logger=None, training=True, merge_all_iters_to_one_epoch=False, total_epochs=0):
@@ -69,13 +69,22 @@ def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None,
         dataset.merge_all_iters_to_one_epoch(merge=True, epochs=total_epochs)
 
     if dist:
+        print("build_dataloader: is dist ......")
+        print("HIIIII")
+        time.sleep(3)
         if training:
+            print("build_dataloader: distributedsampler ......")
             sampler = torch.utils.data.distributed.DistributedSampler(dataset)
         else:
             rank, world_size = common_utils.get_dist_info()
             sampler = DistributedSampler(dataset, world_size, rank, shuffle=False)
     else:
         sampler = None
+
+    print("HIIIII before initializing DATA LOADER in build_dataloader method of __init__.py")
+    time.sleep(3)
+    assert(sampler is None)
+
     dataloader = DataLoader(
         dataset, batch_size=batch_size, pin_memory=True, num_workers=workers,
         shuffle=(sampler is None) and training, collate_fn=dataset.collate_batch,

@@ -190,7 +190,7 @@ class Custom(data.Dataset):
         """Prepare file list for the dataset"""
         file_list = []
 
-        pc_root = "/home/shinghei/lidar_generation/our_ws/foreground_object_pointclouds"
+        pc_root = "/home/shinghei/lidar_generation/Lidar_generation/foreground_object_pointclouds"
         pc_folder_list = os.listdir(pc_root)
         with open(os.path.join(pc_root, "sample_dict.pickle"), 'rb') as handle:
             sample_dict= pickle.load(handle)
@@ -217,7 +217,8 @@ class Custom(data.Dataset):
                 kitti_box = copy.deepcopy(nusc_box).corners().T
 
                 # convert nuscenes bounding box to kitti's bounding box
-                kitti_box[:,:] = kitti_box[[2,3,7,6,1,5,4,5],:]
+                kitti_box[:,:] = kitti_box[[2,3,7,6,1,0,4,5],:]
+                #TYPO fixed on 3rd November, the fix is above: kitti_box[:,:] = kitti_box[[2,3,7,6,1,5,4,5],:]
                 #kitti_box[:,:] = kitti_box[[7,6,2,3,4,5,1,0],:]
 
                 suffix = pc_file.split("_")[1]

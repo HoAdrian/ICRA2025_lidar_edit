@@ -1,24 +1,28 @@
 # File structure
 ## models: 
-	- encoder, decoder, mask git for transformers and point models respectively
+	- encoder, decoder, mask git implemented with transformer architecture
 	- quantizer
+## configs:
+	- nuscenes_config.py: configuration containing parameters for voxelization and transformer models' hyperparameters
 ## datasets:
-	- data_utils: general utilities
-	- data_utils_<dataset>: utilities for that particular dataset
-	- dataset: voxelizer and the dataset class shared by all types of datasets (e.g. nuscenes)
+	- data_utils.py: general utilities
+	- data_utils_nuscenes.py: utilities for NuScenes dataset
+	- dataset_nuscenes.py: contains datasets for training, inpainting evaluation, foreground object extraction for point cloud completion and foreground object insertion
+	- dataset.py: voxelizer and a general dataset class shared by all types of datasets in dataset_nuscenes.py
 ## train_transformer_models: 
 	- codes for training and testing transformer models
 ## evaluation
-	- evaluate performance of our method
+	- evaluate performance of our inpainting method using statistical metrics e.g. MMD. We can also save the in-painted backgrounds from different baselines. 
 ## actor_insertion
-	- insert foreground vehicles either by nearest neighbor allocentric angle lookup or by point cloud completion
+	- insert dense foreground vehicles for training (perturbed poses) and evaluation (inserted at original poses) of 3D detection models
 ## other_repo
-	- AnchorFormer: clone the original repo, Some modified scripts are included in this folder. This folder also includes the completed point cloud using AnchorFormer on KITTI dataset. 
-	- The modified scripts are used to output the completed point cloud of the KITTI dataset and to unnormalized the output point cloud (undo the dataset's transformation)
-	- Here is the original repo: https://github.com/chenzhik/AnchorFormer and where I downloaded the dataset: https://github.com/yuxumin/PoinTr/blob/master/DATASET.md
+	- AnchorFormer: clone the original repo, Some modified scripts are included in this folder. This folder also includes the completed point cloud using AnchorFormer on KITTI dataset. Some scripts are customized to run point cloud completion on our extracted vehicles from NuScenes. Here is the original repo: https://github.com/chenzhik/AnchorFormer and where I downloaded the dataset: https://github.com/yuxumin/PoinTr/blob/master/DATASET.md
+
+	- OpenPCDet: 3D detection model's dataset creation, training and evaluation. We use VoxelNext trained on single-sweep lidar with intensity values (reflectance) set to zero. 
 
 # Installation
-- run the ultralidar.sh script in the installation folder to install dependencies
+- For run the ultralidar.sh script in the installation folder to install dependencies for our repo and AnchorFormer
+- For 3D detection experiments, run mmdet3d.sh to install OpenPCDet's dependencies and go to OpenPCDet's repo to install their dependencies
 - Follow the instruction of AnchorFormer for point cloud completion
 
 ## setting up nuscenes dataset folder structure

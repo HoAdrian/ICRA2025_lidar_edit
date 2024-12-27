@@ -14,9 +14,13 @@ from pcdet.datasets.kitti.kitti_object_eval_python import kitti_common
 
 class DataBaseSampler(object):
     def __init__(self, root_path, sampler_cfg, class_names, logger=None):
+        #TODO: only cars bus and truck, shinghei
+        # class_names = {"car", "bus", "truck"}
+
         self.root_path = root_path
         self.class_names = class_names
         self.sampler_cfg = sampler_cfg
+        
 
         self.img_aug_type = sampler_cfg.get('IMG_AUG_TYPE', None)
         self.img_aug_iou_thresh = sampler_cfg.get('IMG_AUG_IOU_THRESH', 0.5)

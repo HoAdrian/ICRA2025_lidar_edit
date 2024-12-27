@@ -65,7 +65,7 @@ which_gen = "ours"
 my_version = "v1.0-trainval"
 my_root = f"/home/shinghei/lidar_generation/OpenPCDet_minghan/data/nuscenes/{my_version}"
 REPLACE_MINE_PATH = f"{my_root}/{which_gen}/{my_version}/token2sample.pickle"
-TRAIN_WITH_MY_AUGMENT=False
+TRAIN_WITH_MY_AUGMENT=False#True # set this to augment our generated data with nusc data
 
 with open(REPLACE_MINE_PATH, 'rb') as handle:
     token2sample_dict = pickle.load(handle)
@@ -175,6 +175,7 @@ def load_gt(nusc: NuScenes, eval_split: str, box_cls, verbose: bool = False) -> 
 
     # Load annotations and filter predictions and annotations.
     tracking_id_set = set()
+    count = 0
     for sample_token in tqdm_package.tqdm(sample_tokens, leave=verbose):
 
         sample = nusc.get('sample', sample_token)
@@ -187,6 +188,9 @@ def load_gt(nusc: NuScenes, eval_split: str, box_cls, verbose: bool = False) -> 
         if lidar_token in token2sample_dict:#my_data is not None:
             my_data = token2sample_dict[lidar_token]
             ref_lidar_path, my_boxes, my_annotation_tokens, sample_records, ann_info_list = my_data
+            count+=1
+            # if count>2200:
+            #     break
         else:
             continue
         # points = np.fromfile(ref_lidar_path, dtype = np.float32).reshape((-1, 5))
@@ -475,7 +479,6 @@ def filter_eval_boxes(nusc: NuScenes,
     # Accumulators for number of filtered boxes.
     total, dist_filter, point_filter, bike_rack_filter = 0, 0, 0, 0
     for ind, sample_token in enumerate(eval_boxes.sample_tokens):
-
         # Filter on distance first.
         total += len(eval_boxes[sample_token])
         eval_boxes.boxes[sample_token] = [box for box in eval_boxes[sample_token] if
@@ -483,8 +486,8 @@ def filter_eval_boxes(nusc: NuScenes,
         dist_filter += len(eval_boxes[sample_token])
 
         # Then remove boxes with zero points in them. Eval boxes have -1 points by default.
-        # eval_boxes.boxes[sample_token] = [box for box in eval_boxes[sample_token] if not box.num_pts == 0]
-        # point_filter += len(eval_boxes[sample_token])
+        eval_boxes.boxes[sample_token] = [box for box in eval_boxes[sample_token] if not box.num_pts == 0]
+        point_filter += len(eval_boxes[sample_token])
 
         # # Perform bike-rack filtering.
         # sample = nusc.get('sample', sample_token)
@@ -852,8 +855,8 @@ class CustomNuScenesDataset(DatasetTemplate):
                 continue
             with open(info_path, 'rb') as f:
                 infos = pickle.load(f)
-                print("YESSSSSSSSSSSss")
-                print(infos)
+                print("YESSSSSSSSSSSss, opening info...")
+                #print(infos)
                 nuscenes_infos.extend(infos)
 
         self.infos.extend(nuscenes_infos)
@@ -863,22 +866,33 @@ class CustomNuScenesDataset(DatasetTemplate):
         """
         Class-balanced sampling of nuScenes dataset from https://arxiv.org/abs/1908.09492
         """
+        #class_names = ["car", "bus", "truck"]
+        #TODO: class_names = self.class_names
+        class_names = self.class_names
+        
         if self.class_names is None:
             return infos
 
-        cls_infos = {name: [] for name in self.class_names}
+        cls_infos = {name: [] for name in class_names}
         for info in infos:
             for name in set(info['gt_names']):
-                if name in self.class_names:
+                if name in class_names:
                     cls_infos[name].append(info)
 
         duplicated_samples = sum([len(v) for _, v in cls_infos.items()])
         cls_dist = {k: len(v) / duplicated_samples for k, v in cls_infos.items()}
 
+        print("before balanced sampling: ", {k: len(v) for k, v in cls_infos.items()}, "\n")
+        print("before balanced sampling dist: ", cls_dist, "\n")
+        print("sum prob: ", sum([v for k,v in cls_dist.items()]))
+
         sampled_infos = []
 
-        frac = 1.0 / len(self.class_names)
+        frac = 1.0 / len(class_names)
         ratios = [frac / v for v in cls_dist.values()]
+
+        # print("GGGGGGGG this the ratio and I am stephen chow your nightmare")
+        # print("@@@@@@@@@@@@@@@ YYYYYYYYYYY XXXXXXXXXXX", ratios)
 
         for cur_cls_infos, ratio in zip(list(cls_infos.values()), ratios):
             sampled_infos += np.random.choice(
@@ -886,13 +900,21 @@ class CustomNuScenesDataset(DatasetTemplate):
             ).tolist()
         self.logger.info('Total samples after balanced resampling: %s' % (len(sampled_infos)))
 
-        cls_infos_new = {name: [] for name in self.class_names}
+        cls_infos_new = {name: [] for name in class_names}
         for info in sampled_infos:
             for name in set(info['gt_names']):
-                if name in self.class_names:
+                if name in class_names:
                     cls_infos_new[name].append(info)
 
-        cls_dist_new = {k: len(v) / len(sampled_infos) for k, v in cls_infos_new.items()}
+        duplicated_samples = sum([len(v) for _, v in cls_infos_new.items()])
+        cls_dist_new = {k: len(v) / (duplicated_samples) for k, v in cls_infos_new.items()}
+        
+
+        print("after balanced sampling: ", {k: len(v) for k, v in cls_infos_new.items()}, "\n")
+        print("after balanced sampling dist: ", cls_dist_new, "\n")
+        print("new sum prob", sum([v for k,v in cls_dist_new.items()]))
+        raise Exception("HAHA sampling debugging")
+
 
         return sampled_infos
 
@@ -916,7 +938,7 @@ class CustomNuScenesDataset(DatasetTemplate):
         info = self.infos[index]
         lidar_path = self.root_path / info['lidar_path']
         points = np.fromfile(str(lidar_path), dtype=np.float32, count=-1).reshape([-1, 5])[:, :4]
-        #points[:,3]=0.0
+        points[:,3]=0.0
 
         sweep_points_list = [points]
         sweep_times_list = [np.zeros((points.shape[0], 1))]
@@ -1026,7 +1048,12 @@ class CustomNuScenesDataset(DatasetTemplate):
 
     def __len__(self):
         if self._merge_all_iters_to_one_epoch:
+            print("##################### MERGE LEN DATASET: ", len(self.infos))
             return len(self.infos) * self.total_epochs
+        
+        print("##################### LEN DATASET: ", len(self.infos))
+        # temp =  len(self.infos)
+        # assert(temp!=2536)
 
         return len(self.infos)
 
@@ -1204,7 +1231,7 @@ def create_nuscenes_info(version, data_path, save_path, max_sweeps=10, with_cam=
         test='test' in version, max_sweeps=max_sweeps, with_cam=with_cam, replace_with_mine_path=REPLACE_MINE_PATH
     )
 
-    print(f"...NOTICE!!!!!: len train infos: {len(train_nusc_infos)}, len val infos: {len(train_nusc_infos)}")
+    print(f"...NOTICE!!!!!: len train infos: {len(train_nusc_infos)}, len val infos: {len(val_nusc_infos)}")
     time.sleep(10)
 
     if TRAIN_WITH_MY_AUGMENT:
@@ -1215,7 +1242,7 @@ def create_nuscenes_info(version, data_path, save_path, max_sweeps=10, with_cam=
         data_path=data_path, nusc=nusc, train_scenes=train_scenes, val_scenes=val_scenes,
         test='test' in version, max_sweeps=max_sweeps, with_cam=with_cam, replace_with_mine_path=None)
 
-        print(f"...NOTICE!!!!!: orig len train infos: {len(orig_train_nusc_infos)}, len val infos: {len(orig_train_nusc_infos)}")
+        print(f"...NOTICE!!!!!: orig len train infos: {len(orig_train_nusc_infos)}, len val infos: {len(orig_val_nusc_infos)}")
         time.sleep(10)
         
         train_nusc_infos = train_nusc_infos + orig_train_nusc_infos
