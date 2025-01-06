@@ -80,13 +80,14 @@ if __name__=="__main__":
         allocentric_dict = {name: [[], [], [], [], [], [], [], [], [],[],[],[], []] for name in vehicle_names.values()}
         sample_dict = {}
 
-        max_num_bus = 100
-        max_num_truck = 100
-        max_num_car = 100
+        max_num_bus = 1e9#100
+        max_num_truck = 1e9#100
+        max_num_car = 1e9#100
         num_car, num_truck, num_bus = 0,0,0
+        datasets = [val_dataset]#[val_dataset, train_dataset]
 
         # use val_dataset first if it is mini
-        for i, dataset in enumerate([val_dataset, train_dataset]):
+        for i, dataset in enumerate(datasets):
             if i==1:
                 is_train=True
                 ### for only using val dataset
@@ -95,10 +96,10 @@ if __name__=="__main__":
                 is_train=False
             
             ############ for handpicking vehicles
-            # samples = np.arange(len(dataset))
-            # np.random.shuffle(samples)
+            samples = np.arange(len(dataset))
+            np.random.shuffle(samples)
             # samples[0] = 40
-            samples = [196, 296]
+            #samples = [196, 296]
             for k in samples:
                 if os.path.exists(os.path.join(args.pc_path, "bus")):
                     num_bus = len(os.listdir(os.path.join(args.pc_path, "bus")))
@@ -116,9 +117,12 @@ if __name__=="__main__":
                     break
                 #k = 31 #56 #31 #66, 31
                 #k = 44
-                _, _, _ ,_ , _, obj_properties = dataset.__getitem__(k)
+                item = dataset.__getitem__(k)
+                if item is None:
+                    continue
+                _, _, _ ,_ , _, obj_properties = item
                 obj_point_cloud_list, obj_name_list, scene_points, obj_allocentric_list, obj_centers_list, obj_boxes_list, \
-                    obj_gamma_list, kitti_boxes_list, lidar_sample_token, all_boxes, obj_ann_token_list, sample_annotation_tokens, sample_records, obj_ann_info_list, curr_sample_table_token = obj_properties
+                    obj_gamma_list, kitti_boxes_list, lidar_sample_token, all_boxes, obj_ann_token_list, sample_annotation_tokens, sample_records, obj_ann_info_list, curr_sample_table_token, not_empty = obj_properties
 
                 print(f"#### NUM OBJECTS: {len(obj_point_cloud_list)}")
                 num_obj = len(obj_point_cloud_list)
@@ -294,15 +298,15 @@ if __name__=="__main__":
 
                         # # visualized unnormalized points
                         ##if name=="car":
-                        print("visualize unnormalized")
-                        pcd = open3d.geometry.PointCloud()
-                        pcd.points = open3d.utility.Vector3dVector(np.array(points))
-                        pcd_colors = np.tile(np.array([[0,0,1]]), (len(points), 1))
-                        pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
-                        car_vis_pos = open3d.geometry.TriangleMesh.create_sphere(radius=0.1)
-                        car_vis_pos.paint_uniform_color([1,0,0])  
-                        car_vis_pos.translate(tuple(center3D))
-                        open3d.visualization.draw_geometries([pcd, car_vis_pos]) 
+                        # print("visualize unnormalized")
+                        # pcd = open3d.geometry.PointCloud()
+                        # pcd.points = open3d.utility.Vector3dVector(np.array(points))
+                        # pcd_colors = np.tile(np.array([[0,0,1]]), (len(points), 1))
+                        # pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
+                        # car_vis_pos = open3d.geometry.TriangleMesh.create_sphere(radius=0.1)
+                        # car_vis_pos.paint_uniform_color([1,0,0])  
+                        # car_vis_pos.translate(tuple(center3D))
+                        # open3d.visualization.draw_geometries([pcd, car_vis_pos]) 
 
                         # print("visualize normalized")
                         # print(f"num points: {len(points_normalized)}")

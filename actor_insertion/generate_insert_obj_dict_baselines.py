@@ -57,8 +57,9 @@ if __name__=="__main__":
 
     vis = False
     voxelizer = Voxelizer(grid_size=config.grid_size, max_bound=config.max_bound, min_bound=config.min_bound)
-    train_pt_dataset = NuscenesForeground(args.trainval_data_path, version = args.data_version, split = 'train', vis=vis, mode=mode, voxelizer=voxelizer)
-    val_pt_dataset = NuscenesForeground(args.trainval_data_path, version = args.data_version, split = 'val', vis =vis, mode=mode, voxelizer=voxelizer)
+    ## important: if you are just inserting the original object point cloud to debug, set filter_obj_point_with_seg to False
+    train_pt_dataset = NuscenesForeground(args.trainval_data_path, version = args.data_version, split = 'train', vis=vis, mode=mode, voxelizer=voxelizer, filter_obj_point_with_seg=False)
+    val_pt_dataset = NuscenesForeground(args.trainval_data_path, version = args.data_version, split = 'val', vis =vis, mode=mode, voxelizer=voxelizer, filter_obj_point_with_seg=False)
     train_dataset=PolarDataset(train_pt_dataset, voxelizer, flip_aug = False, rotate_aug = False, is_test=True, vis=vis, insert=True)
     val_dataset=PolarDataset(val_pt_dataset, voxelizer, flip_aug = False, rotate_aug = False, is_test=True, vis=vis, insert=True)
 
@@ -91,24 +92,25 @@ if __name__=="__main__":
     vqvae.load_state_dict(torch.load(args.vqvae_path)["model_state_dict"])
 
     ################# intensity vqvae
-    intensity_model = VQVAETrans(
-        img_size=voxelizer.grid_size[0:2],
-        in_chans=voxelizer.grid_size[2],
-        patch_size=patch_size,
-        window_size=window_size,
-        patch_embed_dim=patch_embed_dim,
-        num_heads=num_heads,
-        depth=depth,
-        codebook_dim=codebook_dim,
-        num_code=num_code,
-        beta=beta,
-        device=device,
-        dead_limit=dead_limit
-    ).to(device)
-    intensity_model.load_state_dict(torch.load(args.intensity_model_path)["model_state_dict"])
+    # intensity_model = VQVAETrans(
+    #     img_size=voxelizer.grid_size[0:2],
+    #     in_chans=voxelizer.grid_size[2],
+    #     patch_size=patch_size,
+    #     window_size=window_size,
+    #     patch_embed_dim=patch_embed_dim,
+    #     num_heads=num_heads,
+    #     depth=depth,
+    #     codebook_dim=codebook_dim,
+    #     num_code=num_code,
+    #     beta=beta,
+    #     device=device,
+    #     dead_limit=dead_limit
+    # )#.to(device)
+    # intensity_model.load_state_dict(torch.load(args.intensity_model_path)["model_state_dict"])
+    intensity_model = None
 
 
-    ############### intensity unet
+    ############### TODO intensity unet
 
     maskgit_config = config.maskgit_trans_config
     mask_git = MaskGIT(vqvae=vqvae, voxelizer=voxelizer, hidden_dim=maskgit_config["hidden_dim"], depth=maskgit_config["depth"], num_heads=maskgit_config["num_heads"]).to(device)
@@ -183,8 +185,12 @@ if __name__=="__main__":
     #samples = samples[2200:]
     #samples = samples[2600:]
     #samples = samples[116:]
-    samples = [196, 296]
+    #samples = [196, 296]
+    #samples = samples[:10000] # TODO I have up to 9000 now
+    #samples = samples[10000:20001] #I collected up to 19600
+    #samples = samples[19600:20001]
     for k in samples:
+        #k = 40
         #k = 40
         #k = 66
         #k = 240

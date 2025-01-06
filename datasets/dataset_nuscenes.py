@@ -479,12 +479,13 @@ def farthest_point_sample_batched(point, npoint):
 import cv2 
 
 class NuscenesForeground(data.Dataset):
-    def __init__(self, data_path, version = 'v1.0-trainval', split = 'train', vis=False, mode="spherical", any_scene=False, ignore_collect=False, multisweep=False, get_raw=False, voxelizer=None):
+    def __init__(self, data_path, version = 'v1.0-trainval', split = 'train', vis=False, mode="spherical", any_scene=False, ignore_collect=False, multisweep=False, get_raw=False, voxelizer=None, filter_obj_point_with_seg=True):
         '''
         For getting foreground object points and their bounding boxes and other statistics
         - ignore_collect: if True, just return the bounding boxes and the lidar points without doing anything else
         - voxelizer: the voxelizer using spherical coordinates that voxelize the entire point cloud scene
         - any_scene: even go through scenes that have no objects
+        - filter_obj_point_with_seg: filter each obj point cloud with segmentation mask from lidar seg
         '''
         if mode!="spherical" and mode!="polar":
             raise Exception(f"the mode {mode} is invalid")
@@ -543,6 +544,7 @@ class NuscenesForeground(data.Dataset):
         self.any_scene = any_scene
         self.get_raw = get_raw
         self.voxelizer = voxelizer
+        self.filter_obj_point_with_seg = filter_obj_point_with_seg
 
         print("Nuscene dataset COORDINATE mode: ", self.mode)
 
@@ -702,13 +704,14 @@ class NuscenesForeground(data.Dataset):
             sensor_record = self.nusc.get('sensor', cs_record['sensor_token'])
             pose_record = self.nusc.get('ego_pose', sd_record['ego_pose_token'])
 
-
+            not_empty = np.zeros((len(boxes), ))
             if not self.ignore_collect:
                 for i, box in enumerate(boxes):
                     bb_mask = points_in_box(box, points_3D.T, wlh_factor = 1.0)
                     ### TODO: evaluate how this may improve the performance
                     if np.sum(bb_mask)==0:
                         continue
+                    not_empty[i] = 1
                     obj_points = points_3D[bb_mask]
                     category = boxes[i].name
                     ann_token = sample_annotation_tokens[i]
@@ -721,9 +724,10 @@ class NuscenesForeground(data.Dataset):
 
                     if not self.multisweep:
                         # remove ground points
-                        obj_point_labels = point_labels[bb_mask]
-                        lidarseg_mask = obj_point_labels==name2idx[category]
-                        obj_points = obj_points[lidarseg_mask]
+                        if self.filter_obj_point_with_seg:
+                            obj_point_labels = point_labels[bb_mask]
+                            lidarseg_mask = obj_point_labels==name2idx[category]
+                            obj_points = obj_points[lidarseg_mask]
                     else:
                         # remove ground points
                         bb_mask = points_in_box(box, single_sweep_points_xyz[:,:3].T, wlh_factor = 1.0)
@@ -764,7 +768,7 @@ class NuscenesForeground(data.Dataset):
                     box_cam_kitti, box_lidar_kitti = self.kitti_box_converter.nuscenes_gt_to_kitti(self.nusc, sample, nusc_lidar_box=box)
                     
                     box_not_empty = np.sum(points_in_box(box, points_3D.T, wlh_factor = 1.0))!=0
-                    if (category in vehicle_names or self.get_raw) and (box_not_empty):
+                    if (category in vehicle_names or self.get_raw) and (box_not_empty) and len(obj_points)!=0: # TODO: I added len(obj_points)!=0 on 2nd Jan 2025
                         obj_point_cloud_list.append(obj_points)
                         if category in vehicle_names:
                             obj_name_list.append(vehicle_names[category])
@@ -825,7 +829,7 @@ class NuscenesForeground(data.Dataset):
         lidar_sample_token = sample_token
         all_boxes = boxes
         sample_records = {"cs_record":cs_record, "sensor_record":sensor_record, "pose_record":pose_record, "sample_token":sample_token, "version":self.version, "split":self.split}
-        obj_properties = (obj_point_cloud_list, obj_name_list, points_3D, obj_allocentric_list, obj_centers_list, obj_boxes_list, obj_gamma_list, kitti_boxes_list, lidar_sample_token, boxes, obj_ann_token_list, sample_annotation_tokens, sample_records, obj_ann_info_list, curr_sample_table_token)
+        obj_properties = (obj_point_cloud_list, obj_name_list, points_3D, obj_allocentric_list, obj_centers_list, obj_boxes_list, obj_gamma_list, kitti_boxes_list, lidar_sample_token, boxes, obj_ann_token_list, sample_annotation_tokens, sample_records, obj_ann_info_list, curr_sample_table_token, not_empty)
 
         #print(f"<o> A <o>   VISIBILITY object counts: {count_visible}")
         #plot_obj_regions([], [], points_xyz, 40, boxes, xlim=[-40,40], ylim=[-40,40], title="raw", path=None, name=None, vis=True)

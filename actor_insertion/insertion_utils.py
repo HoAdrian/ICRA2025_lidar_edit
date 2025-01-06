@@ -73,6 +73,7 @@ def insert_vehicle_pc(vehicle_pc, bbox, insert_xyz_pos, rotation_angle, voxels_o
         vehicle_pc = np.matmul(kitti_to_nu_lidar_mat, vehicle_pc.T).T
 
     ##### We have assumed that the vehicle is centered at its centroid defined by its bounding box
+    assert(center is not None)
     if center is not None:
         vehicle_pc = vehicle_pc-center
 
@@ -103,6 +104,9 @@ def insert_vehicle_pc(vehicle_pc, bbox, insert_xyz_pos, rotation_angle, voxels_o
     nearest_cart_voxels_pos = polar2cart(nearest_polar_voxels_pos, mode=mode)
     nearest_min_z = np.min(nearest_cart_voxels_pos[:,2])
     vehicle_min_z = np.min(vehicle_pc[:,2])
+    if not use_dense:
+        assert(center is not None)
+        vehicle_min_z = -(bbox.wlh[-1]/2)
     height_diff = nearest_min_z - vehicle_min_z
     vehicle_pc[:,2] += height_diff
     insert_xyz_pos[2]=height_diff
@@ -134,10 +138,11 @@ def insert_vehicle_pc(vehicle_pc, bbox, insert_xyz_pos, rotation_angle, voxels_o
         print(np.rad2deg(polar_vehicle[np.logical_not(voxelizer.filter_in_bound_points(polar_vehicle))][:,1:3]))
         return None, 1
     
-    if use_dense:
-        new_occupancy = voxelizer.voxelize_and_occlude(voxels_occupancy_has[0].cpu().detach().numpy(), polar_vehicle, insert_only=False)
-    else:
-        new_occupancy,_ = voxelizer.voxelize_and_occlude_2(voxels_occupancy_has[0].cpu().detach().numpy(), polar_vehicle, add_vehicle=True, use_margin=True)
+    new_occupancy = voxelizer.voxelize_and_occlude(voxels_occupancy_has[0].cpu().detach().numpy(), polar_vehicle, insert_only=False)
+    # if use_dense:
+    #     new_occupancy = voxelizer.voxelize_and_occlude(voxels_occupancy_has[0].cpu().detach().numpy(), polar_vehicle, insert_only=False)
+    # else:
+    #     new_occupancy,_ = voxelizer.voxelize_and_occlude_2(voxels_occupancy_has[0].cpu().detach().numpy(), polar_vehicle, add_vehicle=True, use_margin=True)
 
    
     new_scene_points_xyz = voxels2points(voxelizer, voxels=torch.tensor(new_occupancy).permute(2,0,1).unsqueeze(0), mode=mode)[0]
@@ -173,76 +178,76 @@ def is_overlap_opencv(box1, box2):
     intersection = cv2.rotatedRectangleIntersection(rect1, rect2)
     return intersection[0] != cv2.INTERSECT_NONE
 
-def sample_valid_insert_pos(name, current_viewing_angle, dataset, insert_box, other_boxes):
-    '''
-    find a random pos to insert the box such that it is not colliding with other boxes and it does not contain any other background points (may collide with inpainted background, we don't know for now) except drivable surface
-    - name: name of the vehicle being inserted: (car, bus or truck)
-    - current_viewing_angle: the viewing angle of the vehicle's bounding box
-    - dataset: PolarDataset
-    - insert_box: the bounding box of the inserted vehicle
-    - other_boxes: a list of other bounding boxes
-    '''
-    sparse_ground_points = np.copy(dataset.point_cloud_dataset.sparse_ground_points[:,:3]) #(G,3)
-    if name=="car":
-        sparse_ground_points = sparse_ground_points[np.linalg.norm(sparse_ground_points, axis=1)>5]
-    elif name=="bus":
-        sparse_ground_points = sparse_ground_points[np.linalg.norm(sparse_ground_points, axis=1)>15]
-    elif name=="truck":
-        sparse_ground_points = sparse_ground_points[np.linalg.norm(sparse_ground_points, axis=1)>10]
+# def sample_valid_insert_pos(name, current_viewing_angle, dataset, insert_box, other_boxes):
+#     '''
+#     find a random pos to insert the box such that it is not colliding with other boxes and it does not contain any other background points (may collide with inpainted background, we don't know for now) except drivable surface
+#     - name: name of the vehicle being inserted: (car, bus or truck)
+#     - current_viewing_angle: the viewing angle of the vehicle's bounding box
+#     - dataset: PolarDataset
+#     - insert_box: the bounding box of the inserted vehicle
+#     - other_boxes: a list of other bounding boxes
+#     '''
+#     sparse_ground_points = np.copy(dataset.point_cloud_dataset.sparse_ground_points[:,:3]) #(G,3)
+#     if name=="car":
+#         sparse_ground_points = sparse_ground_points[np.linalg.norm(sparse_ground_points, axis=1)>5]
+#     elif name=="bus":
+#         sparse_ground_points = sparse_ground_points[np.linalg.norm(sparse_ground_points, axis=1)>15]
+#     elif name=="truck":
+#         sparse_ground_points = sparse_ground_points[np.linalg.norm(sparse_ground_points, axis=1)>10]
     
-    other_boxes = [(copy.deepcopy(other_box).corners().T[[0,1,5,4], :2]).astype(np.float32) for other_box in other_boxes]
-    target_idx = -1
-    ### pick a random allocentric angle offset
-    alphas = np.linspace(start=0.0, stop=2*np.pi, num=20)
-    target_rand_alpha = 0
-    # remember to shuffle
-    np.random.shuffle(sparse_ground_points)
-    np.random.shuffle(alphas)
-    got_candidate = False
-    for ground_point_idx in range(sparse_ground_points.shape[0]):
-        for rand_alpha in alphas:
-            insert_box_copy = copy.deepcopy(insert_box)
-            ground_point = sparse_ground_points[ground_point_idx, :]
+#     other_boxes = [(copy.deepcopy(other_box).corners().T[[0,1,5,4], :2]).astype(np.float32) for other_box in other_boxes]
+#     target_idx = -1
+#     ### pick a random allocentric angle offset
+#     alphas = np.linspace(start=0.0, stop=2*np.pi, num=20)
+#     target_rand_alpha = 0
+#     # remember to shuffle
+#     np.random.shuffle(sparse_ground_points)
+#     np.random.shuffle(alphas)
+#     got_candidate = False
+#     for ground_point_idx in range(sparse_ground_points.shape[0]):
+#         for rand_alpha in alphas:
+#             insert_box_copy = copy.deepcopy(insert_box)
+#             ground_point = sparse_ground_points[ground_point_idx, :]
 
-            # simulate moving the box there
-            desired_viewing_angle = compute_viewing_angle(ground_point[:2])
-            rotation_align = -(desired_viewing_angle - current_viewing_angle) # negative sign because gamma increases clockwise
-            rotation_align-=rand_alpha
-            insert_box_copy.translate(-insert_box_copy.center)
-            insert_box_copy.rotate(pyquaternion_from_angle(rotation_align))
-            insert_box_copy.translate(ground_point)
+#             # simulate moving the box there
+#             desired_viewing_angle = compute_viewing_angle(ground_point[:2])
+#             rotation_align = -(desired_viewing_angle - current_viewing_angle) # negative sign because gamma increases clockwise
+#             rotation_align-=rand_alpha
+#             insert_box_copy.translate(-insert_box_copy.center)
+#             insert_box_copy.rotate(pyquaternion_from_angle(rotation_align))
+#             insert_box_copy.translate(ground_point)
 
-            insert_box_2d = (insert_box_copy.corners().T[[0,1,5,4], :2]).astype(np.float32)
-            assert(isinstance(insert_box_2d, np.ndarray))
+#             insert_box_2d = (insert_box_copy.corners().T[[0,1,5,4], :2]).astype(np.float32)
+#             assert(isinstance(insert_box_2d, np.ndarray))
 
-            if np.sum(points_in_box(insert_box_copy, dataset.point_cloud_dataset.other_background_points[:,:3].T, wlh_factor = 1.0))>0:
-                continue
+#             if np.sum(points_in_box(insert_box_copy, dataset.point_cloud_dataset.other_background_points[:,:3].T, wlh_factor = 1.0))>0:
+#                 continue
             
-            if len(other_boxes)!=0:
-                if not is_overlap_shapely(insert_box_2d, other_boxes):
-                    target_idx = ground_point_idx
-                    got_candidate=True
-                    target_rand_alpha = rand_alpha
-                    break
-            else:
-                target_idx = np.random.randint(low=0, high=len(sparse_ground_points))
-                got_candidate=True
-                target_rand_alpha = 0
-                break
-        # exit the loop if we have found a valid insert pos
-        if got_candidate:
-            break
+#             if len(other_boxes)!=0:
+#                 if not is_overlap_shapely(insert_box_2d, other_boxes):
+#                     target_idx = ground_point_idx
+#                     got_candidate=True
+#                     target_rand_alpha = rand_alpha
+#                     break
+#             else:
+#                 target_idx = np.random.randint(low=0, high=len(sparse_ground_points))
+#                 got_candidate=True
+#                 target_rand_alpha = 0
+#                 break
+#         # exit the loop if we have found a valid insert pos
+#         if got_candidate:
+#             break
 
     
-    if target_idx==-1:
-        print("WARNING: no valid insert pos")
-        return None
+#     if target_idx==-1:
+#         print("WARNING: no valid insert pos")
+#         return None
         
 
-    insert_xyz_pos = sparse_ground_points[target_idx]
-    print(f"+++++ insert_xyz_pos: {insert_xyz_pos}")
+#     insert_xyz_pos = sparse_ground_points[target_idx]
+#     print(f"+++++ insert_xyz_pos: {insert_xyz_pos}")
 
-    return insert_xyz_pos, target_rand_alpha
+#     return insert_xyz_pos, target_rand_alpha
 
 from datasets.dataset_nuscenes import vehicle_names, plot_obj_regions
 import timeit
@@ -299,11 +304,18 @@ def insertion_vehicles_driver(intensity_model, inpainted_points_masked, inpainte
     new_obj_ann_token_list = []
     new_ann_info_list=[]
 
-    #(obj_point_cloud_list, obj_name_list, points_3D, obj_allocentric_list, obj_centers_list, obj_boxes_list, obj_gamma_list, kitti_boxes_list, lidar_sample_token, boxes, obj_ann_token_list, sample_annotation_tokens, sample_records, obj_ann_info_list, curr_sample_table_token)
+    #(obj_point_cloud_list, obj_name_list, points_3D, obj_allocentric_list, obj_centers_list, obj_boxes_list, obj_gamma_list, kitti_boxes_list, lidar_sample_token, boxes, obj_ann_token_list, sample_annotation_tokens, sample_records, obj_ann_info_list, curr_sample_table_token,not_empty)
     dataset_obj_boxes_list = dataset.obj_properties[5] #5
-    original_box_idxs = [i for i, box in enumerate(dataset_obj_boxes_list) if (box.name in vehicle_names and vehicle_names[box.name] in {"bus", "car", "truck"})]
+    dataset_lidar_sample_token = dataset.obj_properties[8]
+    dataset_not_empty_box_indicator = dataset.obj_properties[15]
+    original_box_idxs = [i for i, box in enumerate(dataset_obj_boxes_list) if (box.name in vehicle_names and vehicle_names[box.name] in {"bus", "car", "truck"} and dataset_not_empty_box_indicator[i]==1)]
     dataset_obj_ann_token_list = [dataset.obj_properties[10][i] for i in original_box_idxs] #10
     original_vehicle_boxes = [dataset_obj_boxes_list[i] for i in original_box_idxs]
+    original_center3D_list = [dataset.obj_properties[4][i] for i in original_box_idxs]
+    original_ann_info_list = [dataset.obj_properties[13][i] for i in original_box_idxs]
+    original_vehicle_pc_list = [dataset.obj_properties[0][i] for i in original_box_idxs]
+
+
 
     names = [vehicle_names[box.name] for box in original_vehicle_boxes]
     assert(len(dataset_obj_ann_token_list)==len(original_vehicle_boxes))
@@ -343,46 +355,62 @@ def insertion_vehicles_driver(intensity_model, inpainted_points_masked, inpainte
         N = len(allocentric_angles)
         assert(len(allocentric_angles)==len(pc_filenames)==len(viewing_angles)==len(boxes)==len(center3Ds))
 
-        ####### choose an object
-        original_box = original_vehicle_boxes[i]
-        original_volume = np.prod(original_box.wlh)
-        chosen_idx = np.argmin(np.abs((box_volume_list)-original_volume))
+        use_original_object=False
+        
+        if not use_original_object:
+            ####### choose an object
+            original_box = original_vehicle_boxes[i]
+            original_volume = np.prod(original_box.wlh)
+            original_alpha, _, _ = angles_from_box(original_box)
+            #### choose by matching allocentric angle
+            chosen_idx = np.argmin(np.abs(np.array(allocentric_angles)-original_alpha))
+            #### choose by matching volume
+            #chosen_idx = np.argmin(np.abs((box_volume_list)-original_volume))
 
+            ####################### get object from dense reconstructed object library
+            pc_filename = pc_filenames[chosen_idx]
+            bbox = copy.deepcopy(boxes[chosen_idx])
+            center3D = center3Ds[chosen_idx]
+            pc_path = os.path.join(args.pc_path, name)
+            new_obj_ann_token = obj_ann_tokens[chosen_idx]
+            new_ann_info = ann_info_list[chosen_idx]
 
-        pc_filename = pc_filenames[chosen_idx]
-        bbox = boxes[chosen_idx]
-        center3D = center3Ds[chosen_idx]
-        pc_path = os.path.join(args.pc_path, name)
-        new_obj_ann_token = obj_ann_tokens[chosen_idx]
-        new_ann_info = ann_info_list[chosen_idx]
+            use_dense = args.dense==1
+            #if use_dense and is_good_completion_indicator_list[chosen_idx]:
+            if use_dense:
+                pc_full_path = os.path.join(args.pc_path, "dense_nusc", name, pc_filename)
+            else:
+                print("using incomplete point cloud......")
+                pc_full_path = os.path.join(pc_path, pc_filename)
+                raise Exception("I prefer completed point cloud LOL")
+            vehicle_pc = np.asarray(open3d.io.read_point_cloud(pc_full_path).points) #np.load(pc_full_path)
 
-        use_dense = args.dense==1
-        #if use_dense and is_good_completion_indicator_list[chosen_idx]:
-        if use_dense:
-            pc_full_path = os.path.join(args.pc_path, "dense_nusc", name, pc_filename)
+            ###### insert it right at the position of the original box in the scene before foreground removal
+            original_alpha, original_gamma, original_center = angles_from_box(original_box)
+            insert_xyz_pos = original_center.reshape(-1)
+            insert_xyz_pos[2]-= float(original_box.wlh[2])/2.0 # bottom of the box center
+
+            desired_viewing_angle = original_gamma
+            desired_allocentric_angle = original_alpha
+            current_viewing_angle = viewing_angles[chosen_idx]
+            current_allocentric_angle = allocentric_angles[chosen_idx]
+            rotation_align = -(desired_viewing_angle - current_viewing_angle) # negative sign because gamma increases clockwise
+            # align allocentric as well
+            rotation_align-= (desired_allocentric_angle - current_allocentric_angle)
         else:
-            print("using incomplete point cloud......")
-            pc_full_path = os.path.join(pc_path, pc_filename)
-            raise Exception("I prefer completed point cloud LOL")
-        vehicle_pc = np.asarray(open3d.io.read_point_cloud(pc_full_path).points) #np.load(pc_full_path)
+            ################### get original object 
+            bbox = original_vehicle_boxes[i]
+            original_box = bbox
+            center3D = original_center3D_list[i]
+            new_obj_ann_token = dataset_obj_ann_token_list[i]
+            new_ann_info = original_ann_info_list[i]
+            vehicle_pc = original_vehicle_pc_list[i]
+            use_dense = False
 
-        ###### insert it right at the position of the original box in the scene before foreground removal
-        original_alpha, original_gamma, original_center = angles_from_box(original_box)
-        insert_xyz_pos = original_center.reshape(-1)
-        insert_xyz_pos[2]-= float(original_box.wlh[2])/2.0 # bottom of the box center
-
-        # if use_dense and is_good_completion_indicator_list[chosen_idx]:
-        #     print(f"((((( {name} )))))")
-        #     print("################ saved bbox center: ", bbox.center.reshape(-1))
-        #     print("################ saved bbox center: ", original_box.center.reshape(-1))
-
-        desired_viewing_angle = original_gamma
-        desired_allocentric_angle = original_alpha
-        current_viewing_angle = viewing_angles[chosen_idx]
-        current_allocentric_angle = allocentric_angles[chosen_idx]
-        rotation_align = -(desired_viewing_angle - current_viewing_angle) # negative sign because gamma increases clockwise
-        # align allocentric as well
-        rotation_align-= (desired_allocentric_angle - current_allocentric_angle)
+            original_alpha, original_gamma, original_center = angles_from_box(original_box)
+            insert_xyz_pos = original_center.reshape(-1)
+            insert_xyz_pos[2]-= float(original_box.wlh[2])/2.0 # bottom of the box center
+            rotation_align = 0.0
 
         # print("############## visualizing insert bbox")
         # pcd = open3d.geometry.PointCloud()
@@ -908,11 +936,13 @@ def insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked
         ####### choose an object
         original_box = original_vehicle_boxes[i]
         original_volume = np.prod(original_box.wlh)
-        chosen_idx = np.argmin(np.abs((box_volume_list)-original_volume))
-        chosen_idx = np.random.randint(0, N/2)
+        chosen_idx = np.argmin(np.abs((box_volume_list)-original_volume))+1
+        #chosen_idx = np.random.randint(0, N/2)
+        print(f"chosen idx jjjjjj: {chosen_idx}")
+        #chosen_idx = 100
 
         pc_filename = pc_filenames[chosen_idx]
-        bbox = boxes[chosen_idx]
+        bbox = copy.deepcopy(boxes[chosen_idx])
         center3D = center3Ds[chosen_idx]
         pc_path = os.path.join(args.pc_path, name)
         new_obj_ann_token = obj_ann_tokens[chosen_idx]
@@ -1036,41 +1066,41 @@ def insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked
     assert(len(new_bboxes)==len(new_obj_ann_token_list)==len(new_ann_info_list))
 
     ######## visualize without resampling and occlusion
-    print("############## visualizing inserted cars with no resampling nor occlusion")
-    pcd = open3d.geometry.PointCloud()
-    pcd.points = open3d.utility.Vector3dVector(np.array(new_points_xyz_no_resampling_occlusion))
-    pcd_colors = np.tile(np.array([[0,0,1]]), (len(new_points_xyz_no_resampling_occlusion), 1))
-    mask_vehicle = np.ones((len(new_points_xyz_no_resampling_occlusion),))==0
-    for i, box in enumerate(new_bboxes_copy):
-        mask = points_in_box(box, new_points_xyz_no_resampling_occlusion.T, wlh_factor = 1.0)
-        mask_vehicle = mask_vehicle | mask
-    pcd_colors[mask_vehicle==1, 0] = 1
-    pcd_colors[mask_vehicle==1, 2] = 0
-    pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
+    # print("############## visualizing inserted cars with no resampling nor occlusion")
+    # pcd = open3d.geometry.PointCloud()
+    # pcd.points = open3d.utility.Vector3dVector(np.array(new_points_xyz_no_resampling_occlusion))
+    # pcd_colors = np.tile(np.array([[0,0,1]]), (len(new_points_xyz_no_resampling_occlusion), 1))
+    # mask_vehicle = np.ones((len(new_points_xyz_no_resampling_occlusion),))==0
+    # for i, box in enumerate(new_bboxes_copy):
+    #     mask = points_in_box(box, new_points_xyz_no_resampling_occlusion.T, wlh_factor = 1.0)
+    #     mask_vehicle = mask_vehicle | mask
+    # pcd_colors[mask_vehicle==1, 0] = 1
+    # pcd_colors[mask_vehicle==1, 2] = 0
+    # pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
 
-    mat = open3d.visualization.rendering.MaterialRecord()
-    mat.shader = 'defaultUnlit'
-    mat.point_size = 3.0
-    open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
+    # mat = open3d.visualization.rendering.MaterialRecord()
+    # mat.shader = 'defaultUnlit'
+    # mat.point_size = 3.0
+    # #open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
 
-    ground_pcd = open3d.geometry.PointCloud()
-    ground_pcd.points = open3d.utility.Vector3dVector(dataset.point_cloud_dataset.ground_points[:,:3][:,:3])
-    ground_pcd_colors = np.tile(np.array([[0,1,0]]), (len(dataset.point_cloud_dataset.ground_points[:,:3][:,:3]), 1))
-    ground_pcd.colors = open3d.utility.Vector3dVector(ground_pcd_colors)
+    # ground_pcd = open3d.geometry.PointCloud()
+    # ground_pcd.points = open3d.utility.Vector3dVector(dataset.point_cloud_dataset.ground_points[:,:3][:,:3])
+    # ground_pcd_colors = np.tile(np.array([[0,1,0]]), (len(dataset.point_cloud_dataset.ground_points[:,:3][:,:3]), 1))
+    # ground_pcd.colors = open3d.utility.Vector3dVector(ground_pcd_colors)
 
-    lines = [[0, 1], [1, 2], [2, 3], [0, 3],
-         [4, 5], [5, 6], [6, 7], [4, 7],
-         [0, 4], [1, 5], [2, 6], [3, 7]]
-    visboxes = []
-    for box in new_bboxes_copy:
-        line_set = open3d.geometry.LineSet()
-        line_set.points = open3d.utility.Vector3dVector(box.corners().T)
-        line_set.lines = open3d.utility.Vector2iVector(lines)
-        colors = [[1, 0, 0] for _ in range(len(lines))]
-        line_set.colors = open3d.utility.Vector3dVector(colors)
-        visboxes.append(line_set)
+    # lines = [[0, 1], [1, 2], [2, 3], [0, 3],
+    #      [4, 5], [5, 6], [6, 7], [4, 7],
+    #      [0, 4], [1, 5], [2, 6], [3, 7]]
+    # visboxes = []
+    # for box in new_bboxes_copy:
+    #     line_set = open3d.geometry.LineSet()
+    #     line_set.points = open3d.utility.Vector3dVector(box.corners().T)
+    #     line_set.lines = open3d.utility.Vector2iVector(lines)
+    #     colors = [[1, 0, 0] for _ in range(len(lines))]
+    #     line_set.colors = open3d.utility.Vector3dVector(colors)
+    #     visboxes.append(line_set)
 
-    open3d.visualization.draw_geometries([pcd, ground_pcd]+visboxes)
+    # open3d.visualization.draw_geometries([pcd, ground_pcd]+visboxes)
 
     # cam_right_vec = np.array([1.0, 0.0, 0.0])
     # cam_pos = np.array([0.0, 0.0, 5.0])
@@ -1084,21 +1114,21 @@ def insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked
 
 
 
-    print("############## visualizing inserted cars with POST-PROCESSING i.e. OCCLUSION")
-    pcd = open3d.geometry.PointCloud()
-    pcd.points = open3d.utility.Vector3dVector(np.array(new_scene_points_xyz))
-    pcd_colors = np.tile(np.array([[0,0,1]]), (len(new_scene_points_xyz), 1))
-    mask_vehicle = np.ones((len(new_scene_points_xyz),))==0
-    for i, box in enumerate(new_bboxes):
-        mask = points_in_box(box, new_scene_points_xyz.T, wlh_factor = 1.0)
-        mask_vehicle = mask_vehicle | mask
-    pcd_colors[mask_vehicle==1, 0] = 1
-    pcd_colors[mask_vehicle==1, 2] = 0
-    pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
-    mat = open3d.visualization.rendering.MaterialRecord()
-    mat.shader = 'defaultUnlit'
-    mat.point_size = 3.0
-    open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
+    # print("############## visualizing inserted cars with POST-PROCESSING i.e. OCCLUSION")
+    # pcd = open3d.geometry.PointCloud()
+    # pcd.points = open3d.utility.Vector3dVector(np.array(new_scene_points_xyz))
+    # pcd_colors = np.tile(np.array([[0,0,1]]), (len(new_scene_points_xyz), 1))
+    # mask_vehicle = np.ones((len(new_scene_points_xyz),))==0
+    # for i, box in enumerate(new_bboxes):
+    #     mask = points_in_box(box, new_scene_points_xyz.T, wlh_factor = 1.0)
+    #     mask_vehicle = mask_vehicle | mask
+    # pcd_colors[mask_vehicle==1, 0] = 1
+    # pcd_colors[mask_vehicle==1, 2] = 0
+    # pcd.colors = open3d.utility.Vector3dVector(pcd_colors)
+    # mat = open3d.visualization.rendering.MaterialRecord()
+    # mat.shader = 'defaultUnlit'
+    # mat.point_size = 3.0
+    # open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
 
     # cam_right_vec = np.array([1.0, 0.0, 0.0])
     # cam_pos = np.array([0.0, 0.0, 5.0])
