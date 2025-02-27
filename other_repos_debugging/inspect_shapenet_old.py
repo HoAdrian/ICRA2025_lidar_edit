@@ -135,7 +135,7 @@ def fps(data, number):
 
 
 ############################## inspecting shape net dataset #############################################
-from pc_completion_normalize import NormalizeObjectPose, nusc2kitti_box_for_pc_completion_normalize, rotate, nusc_box_from_axis_aligned_pc, kitti_box_yaw_normalization, visualize_boxes, visualize_kitti_box
+from pc_completion_normalize import NormalizeObjectPose, nusc2kitti_box_for_pc_completion_normalize, rotate, nusc_box_from_axis_aligned_pc
 # centroid: [-0.00071701  0.06227426  0.00122877]
 # max norm: 0.49752506613731384
 
@@ -145,7 +145,7 @@ nuscenes_bus_list = []
 data_root = '/home/shinghei/lidar_generation/PoinTr/data/ShapeNet55-34/ShapeNet-55'
 pc_path = '/home/shinghei/lidar_generation/PoinTr/data/ShapeNet55-34/shapenet_pc'
 shapenet_dict = json.load(open('/home/shinghei/lidar_generation/PoinTr/data/shapenet_synset_dict.json', 'r'))
-subset = "test"#"train"#"test"#"test" #"test"
+subset = "test"#"test" #"test"
 data_list_file = os.path.join(data_root, f'{subset}.txt')
 
 print(f'[DATASET] Open file {data_list_file}')
@@ -165,6 +165,7 @@ for line in lines:
     #print(f"category: {category}")
     if category != cat:
         continue
+
     
     sample = {
         'taxonomy_id': taxonomy_id,
@@ -173,40 +174,29 @@ for line in lines:
     }
     data = IO.get(os.path.join(pc_path, sample['file_path'])).astype(np.float32)
 
-    # data_normalized, centroid, m = pc_norm(data)
-    # shapenet_bus = data_normalized
+
+    # gt = torch.from_numpy(data).unsqueeze(0).cuda()
+    # npoints =  8192
+    # partial_pc, _ = seprate_point_cloud(gt, npoints, [int(npoints * 1/4) , int(npoints * 3/4)], fixed_points = None)
+    # data = partial_pc.squeeze().cpu().numpy()
+
+    data_normalized, centroid, m = pc_norm(data)
+
+    shapenet_bus = data_normalized
     #_, centroid, m = pc_norm(shapenet_bus)
     # _, centroid, m = pc_norm(shapenet_bus)
 
+    # shapenet_bus_nusc_bbox = nusc_box_from_axis_aligned_pc(data)
+    # kitti_box = nusc2kitti_box_for_pc_completion_normalize(shapenet_bus_nusc_bbox)
+    # sample = {'bbox':kitti_box, 'partial_cloud':data}
+
+    # parameters = {'input_keys':{'ptcloud': 'partial_cloud', 'bbox':'bbox'}}
+    # normalizer = NormalizeObjectPose(parameters)
+    # data_normalized, center, scale = normalizer(sample)
+    # shapenet_bus = data_normalized['partial_cloud']
+
     
-
-    shapenet_bus_nusc_bbox = nusc_box_from_axis_aligned_pc(data)
-    kitti_box = nusc2kitti_box_for_pc_completion_normalize(shapenet_bus_nusc_bbox)
-    sample = {'bbox':kitti_box, 'partial_cloud':data}
-
-    # bbox, bbox_rot, bbox_scale = kitti_box_yaw_normalization(kitti_box)
-    # visualize_boxes([bbox, bbox_rot, bbox_scale], labels=["original", "rotated", "scaled"])
-    # visualize_boxes([bbox, bbox_rot], labels=["original", "rotated"])
-    #visualize_kitti_box(bbox_scale)
-    # visualize_kitti_box(bbox_rot)
-
-    parameters = {'input_keys':{'ptcloud': 'partial_cloud', 'bbox':'bbox'}}
-    normalizer = NormalizeObjectPose(parameters)
-    data_normalized, center, scale = normalizer(sample)
-    shapenet_bus = data_normalized['partial_cloud']
-
-    ############## old scale visualization #########
-    # bbox, bbox_rot, bbox_scale = kitti_box_yaw_normalization(kitti_box)
-    # scale = np.max(bbox_rot, axis=0) - np.min(bbox_rot, axis=0)
-    # print(f"sides: {scale}")
-    # visualize_kitti_box(bbox_scale, title="shapenet normalized box")
-
-    shapenet_bus = rotate(shapenet_bus, axis=(1, 0, 0), angle=-np.pi/2)
-    shapenet_bus = rotate(shapenet_bus, axis=(0, 1, 0), angle=np.pi/2)
-    
-    shapenet_bus_list.append((shapenet_bus,))
-    # break
-    
+    shapenet_bus_list.append((shapenet_bus, centroid, m))
 
 
 
@@ -261,23 +251,24 @@ for folder in pc_folder_list:
         points = np.asarray(open3d.io.read_point_cloud(os.path.join(pc_root, folder, pc_file)).points)
         sample = {'bbox':kitti_box, 'partial_cloud':points}
 
-        #### using old scale
-        # bbox, bbox_rot, bbox_scale = kitti_box_yaw_normalization(kitti_box)
-        # scale = np.max(bbox_rot, axis=0) - np.min(bbox_rot, axis=0)
-        # print(f"sides: {scale}")
-        # visualize_kitti_box(bbox_scale, title="nuscenes normalized box")
-        # visualize_boxes([bbox, bbox_rot, bbox_scale], labels=["original", "rotated", "scaled"])
-
+        no_bbox_normalized_points, centroid, m = pc_norm(points)
+       
         parameters = {'input_keys':{'ptcloud': 'partial_cloud', 'bbox':'bbox'}}
         normalizer = NormalizeObjectPose(parameters)
         data_normalized, center, scale = normalizer(sample)
         nuscenes_bus = data_normalized['partial_cloud']
         
         #nuscenes_bus = rotate(nuscenes_bus, axis=(0, 1, 0), angle=np.pi/2)
-
         
-        nuscenes_bus_list.append((nuscenes_bus,))
-        # break
+        # nuscenes_bus = rotate(no_bbox_normalized_points, axis=(1, 0, 0), angle=np.pi/2)
+        #nuscenes_bus = rotate(nuscenes_bus, axis=(0, 0, 1), angle=-np.pi)
+
+        #nuscenes_bus = no_bbox_normalized_points
+        
+        #nuscenes_bus, centroid, m = pc_norm(nuscenes_bus)
+        #_, centroid, m = pc_norm(nuscenes_bus, center=center, scale=scale)
+       
+        nuscenes_bus_list.append((nuscenes_bus, centroid, m))
 
 
 
@@ -285,10 +276,19 @@ for folder in pc_folder_list:
 for i in range(min([len(shapenet_bus_list), len(nuscenes_bus_list)])):
     shapenet_bus = shapenet_bus_list[i][0]
     nuscenes_bus = nuscenes_bus_list[i][0]
-
+    print("shapemet norm: ", shapenet_bus_list[i][2])
+    print("nusc norm: ", nuscenes_bus_list[i][2])
     shapenet_idx = np.argmax(np.sqrt(np.sum(shapenet_bus**2, axis=1)))
     nuscenes_idx = np.argmax(np.sqrt(np.sum(nuscenes_bus**2, axis=1)))
-    
+    max_shapenet = shapenet_bus[shapenet_idx][np.newaxis, :]
+    max_nuscenes = nuscenes_bus[nuscenes_idx][np.newaxis, :]
+    print("max norm point shapenet: ", max_shapenet)
+    print("max norm point nuscenes: ", max_nuscenes)
+    # ground_pcd_colors = np.tile(np.array([[0,1,0]]), (len(grd_points), 1))
+    # ground_pcd.colors = open3d.utility.Vector3dVector(ground_pcd_colors)
+
+    print("shapemet centroiud: ", shapenet_bus_list[i][1])
+    print("nusc centroid: ", nuscenes_bus_list[i][1])
     pcd1 = open3d.geometry.PointCloud()
     pcd1.points = open3d.utility.Vector3dVector(np.array(shapenet_bus))
     pcd_colors = np.tile(np.array([[0,0,1]]), (len(shapenet_bus), 1))

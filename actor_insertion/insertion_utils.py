@@ -308,12 +308,26 @@ def insertion_vehicles_driver(intensity_model, inpainted_points_masked, inpainte
     dataset_obj_boxes_list = dataset.obj_properties[5] #5
     dataset_lidar_sample_token = dataset.obj_properties[8]
     dataset_not_empty_box_indicator = dataset.obj_properties[15]
-    original_box_idxs = [i for i, box in enumerate(dataset_obj_boxes_list) if (box.name in vehicle_names and vehicle_names[box.name] in {"bus", "car", "truck"} and dataset_not_empty_box_indicator[i]==1)]
+
+    print(f"##### dataset obj box list name: {[box.name for box in dataset_obj_boxes_list]}")
+
+    vehicles_we_consider = {"car"} #{"bus", "car", "truck"}
+    original_box_idxs = [i for i, box in enumerate(dataset_obj_boxes_list) if (box.name in vehicle_names and vehicle_names[box.name] in vehicles_we_consider)]
+
     dataset_obj_ann_token_list = [dataset.obj_properties[10][i] for i in original_box_idxs] #10
     original_vehicle_boxes = [dataset_obj_boxes_list[i] for i in original_box_idxs]
     original_center3D_list = [dataset.obj_properties[4][i] for i in original_box_idxs]
     original_ann_info_list = [dataset.obj_properties[13][i] for i in original_box_idxs]
     original_vehicle_pc_list = [dataset.obj_properties[0][i] for i in original_box_idxs]
+
+    other_foreground_box_idxs = [i for i, box in enumerate(dataset_obj_boxes_list) if i not in original_box_idxs]
+    other_foreground_boxes = [dataset_obj_boxes_list[i] for i in other_foreground_box_idxs]
+    other_box_names = [box.name for box in other_foreground_boxes]
+    print(f"#### other foreground object names: {other_box_names}")
+    assert('vehicle.car' not in other_box_names)
+    #assert(1==0)
+    other_foreground_obj_ann_info_list = [dataset.obj_properties[13][i] for i in other_foreground_box_idxs]
+    other_foreground_obj_ann_token_list = [dataset.obj_properties[10][i] for i in other_foreground_box_idxs]
 
 
 
@@ -363,9 +377,9 @@ def insertion_vehicles_driver(intensity_model, inpainted_points_masked, inpainte
             original_volume = np.prod(original_box.wlh)
             original_alpha, _, _ = angles_from_box(original_box)
             #### choose by matching allocentric angle
-            chosen_idx = np.argmin(np.abs(np.array(allocentric_angles)-original_alpha))
+            #chosen_idx = np.argmin(np.abs(np.array(allocentric_angles)-original_alpha))
             #### choose by matching volume
-            #chosen_idx = np.argmin(np.abs((box_volume_list)-original_volume))
+            chosen_idx = np.argmin(np.abs((box_volume_list)-original_volume))
 
             ####################### get object from dense reconstructed object library
             pc_filename = pc_filenames[chosen_idx]
@@ -562,7 +576,9 @@ def insertion_vehicles_driver(intensity_model, inpainted_points_masked, inpainte
     #### timestamp (ignore this)
     new_points_xyz[:,4] = 0.0 #original_points[0,4]
 
-    # ############## ######## visualize without resampling and occlusion
+    print("new boxes: ", [new_bbox_copy.name for new_bbox_copy in new_bboxes_copy])
+
+    ############## ######## visualize without resampling and occlusion
     # print("############## visualizing inserted cars with no resampling nor occlusion")
     # pcd = open3d.geometry.PointCloud()
     # pcd.points = open3d.utility.Vector3dVector(np.array(new_points_xyz_no_resampling_occlusion))
@@ -587,16 +603,21 @@ def insertion_vehicles_driver(intensity_model, inpainted_points_masked, inpainte
     #      [4, 5], [5, 6], [6, 7], [4, 7],
     #      [0, 4], [1, 5], [2, 6], [3, 7]]
     # visboxes = []
-    # for box in new_bboxes_copy:
+    # for box in new_bboxes_copy+other_foreground_boxes:
     #     line_set = open3d.geometry.LineSet()
     #     line_set.points = open3d.utility.Vector3dVector(box.corners().T)
     #     line_set.lines = open3d.utility.Vector2iVector(lines)
-    #     if vehicle_names[box.name]=="car":
-    #         colors = [[1, 0, 0] for _ in range(len(lines))]
-    #     elif vehicle_names[box.name]=="truck":
-    #         colors = [[0, 1, 0] for _ in range(len(lines))]
-    #     elif vehicle_names[box.name]=="bus":
-    #         colors = [[0, 0, 1] for _ in range(len(lines))]
+    #     if box.name in vehicle_names:
+    #         if vehicle_names[box.name]=="car":
+    #             colors = [[1, 0, 0] for _ in range(len(lines))]
+    #         elif vehicle_names[box.name]=="truck":
+    #             colors = [[0, 1, 0] for _ in range(len(lines))]
+    #         elif vehicle_names[box.name]=="bus":
+    #             colors = [[0, 0, 1] for _ in range(len(lines))]
+    #         else:
+    #             colors = [[0, 0, 0] for _ in range(len(lines))]
+    #     else:
+    #         colors = [[0, 1, 1] for _ in range(len(lines))]
     #     line_set.colors = open3d.utility.Vector3dVector(colors)
     #     visboxes.append(line_set)
 
@@ -619,16 +640,21 @@ def insertion_vehicles_driver(intensity_model, inpainted_points_masked, inpainte
     #      [4, 5], [5, 6], [6, 7], [4, 7],
     #      [0, 4], [1, 5], [2, 6], [3, 7]]
     # visboxes = []
-    # for box in new_bboxes:
+    # for box in new_bboxes+other_foreground_boxes:
     #     line_set = open3d.geometry.LineSet()
     #     line_set.points = open3d.utility.Vector3dVector(box.corners().T)
     #     line_set.lines = open3d.utility.Vector2iVector(lines)
-    #     if vehicle_names[box.name]=="car":
-    #         colors = [[1, 0, 0] for _ in range(len(lines))]
-    #     elif vehicle_names[box.name]=="truck":
-    #         colors = [[0, 1, 0] for _ in range(len(lines))]
-    #     elif vehicle_names[box.name]=="bus":
-    #         colors = [[0, 0, 1] for _ in range(len(lines))]
+    #     if box.name in vehicle_names:
+    #         if vehicle_names[box.name]=="car":
+    #             colors = [[1, 0, 0] for _ in range(len(lines))]
+    #         elif vehicle_names[box.name]=="truck":
+    #             colors = [[0, 1, 0] for _ in range(len(lines))]
+    #         elif vehicle_names[box.name]=="bus":
+    #             colors = [[0, 0, 1] for _ in range(len(lines))]
+    #         else:
+    #             colors = [[0, 0, 0] for _ in range(len(lines))]
+    #     else:
+    #         colors=[[0, 1, 1] for _ in range(len(lines))]
     #     line_set.colors = open3d.utility.Vector3dVector(colors)
     #     visboxes.append(line_set)
 
@@ -674,7 +700,7 @@ def insertion_vehicles_driver(intensity_model, inpainted_points_masked, inpainte
 
 
         ############## Save the data needed to build the new database
-        token2sample_dict[lidar_sample_token] = (lidar_full_path, bounding_boxes, new_obj_ann_token_list, sample_records, new_ann_info_list)
+        token2sample_dict[lidar_sample_token] = (lidar_full_path, bounding_boxes+other_foreground_boxes, new_obj_ann_token_list+other_foreground_obj_ann_token_list, sample_records, new_ann_info_list+other_foreground_obj_ann_info_list)
 
         # start_dict_time = timeit.default_timer()
         # print(f"========= SAVING DATA TO {save_lidar_path}")
@@ -684,7 +710,7 @@ def insertion_vehicles_driver(intensity_model, inpainted_points_masked, inpainte
         # end_dict_time = timeit.default_timer()
         # print(f"$$$$$ token2sample dict saving time: {end_dict_time - start_dict_time} seconds")
 
-    return new_scene_points_xyz, new_bboxes, token2sample_dict, voxels_occupancy_has, original_vehicle_boxes, new_points_xyz, count, count_failure_types
+    return new_scene_points_xyz, new_bboxes, token2sample_dict, voxels_occupancy_has, original_vehicle_boxes, new_points_xyz, count, count_failure_types, other_foreground_boxes
 
 
 
@@ -887,9 +913,24 @@ def insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked
 
     #(obj_point_cloud_list, obj_name_list, points_3D, obj_allocentric_list, obj_centers_list, obj_boxes_list, obj_gamma_list, kitti_boxes_list, lidar_sample_token, boxes, obj_ann_token_list, sample_annotation_tokens, sample_records, obj_ann_info_list, curr_sample_table_token)
     dataset_obj_boxes_list = dataset.obj_properties[5] #5
+    dataset_not_empty_box_indicator = dataset.obj_properties[15]
     #dataset_obj_boxes_list = [dataset.obj_properties[5][0], dataset.obj_properties[5][9], dataset.obj_properties[5][6]]
-    original_box_idxs = [i for i, box in enumerate(dataset_obj_boxes_list) if (box.name in vehicle_names and vehicle_names[box.name] in {"bus", "car", "truck"})]
+    
+    #original_box_idxs = [i for i, box in enumerate(dataset_obj_boxes_list) if (box.name in vehicle_names and vehicle_names[box.name] in {"bus", "car", "truck"})]
+    vehicles_we_consider = {"car"} #{"bus", "car", "truck"}
+    original_box_idxs = [i for i, box in enumerate(dataset_obj_boxes_list) if (box.name in vehicle_names and vehicle_names[box.name] in vehicles_we_consider)]
+    
     dataset_obj_ann_token_list = [dataset.obj_properties[10][i] for i in original_box_idxs] #10
+    dataset_obj_ann_info_list = [dataset.obj_properties[13][i] for i in original_box_idxs]
+
+    other_foreground_box_idxs = [i for i, box in enumerate(dataset_obj_boxes_list) if i not in original_box_idxs]
+    other_foreground_boxes = [dataset_obj_boxes_list[i] for i in other_foreground_box_idxs]
+    other_foreground_obj_ann_info_list = [dataset.obj_properties[13][i] for i in other_foreground_box_idxs]
+    other_foreground_obj_ann_token_list = [dataset.obj_properties[10][i] for i in other_foreground_box_idxs]
+    other_box_names = [box.name for box in other_foreground_boxes]
+    print(f"#### other foreground object names: {other_box_names}")
+    assert('vehicle.car' not in other_box_names)
+
     original_vehicle_boxes = [dataset_obj_boxes_list[i] for i in original_box_idxs]
 
     names = [vehicle_names[box.name] for box in original_vehicle_boxes]
@@ -936,7 +977,7 @@ def insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked
         ####### choose an object
         original_box = original_vehicle_boxes[i]
         original_volume = np.prod(original_box.wlh)
-        chosen_idx = np.argmin(np.abs((box_volume_list)-original_volume))+1
+        chosen_idx = np.argmin(np.abs((box_volume_list)-original_volume))#+1
         #chosen_idx = np.random.randint(0, N/2)
         print(f"chosen idx jjjjjj: {chosen_idx}")
         #chosen_idx = 100
@@ -1012,7 +1053,7 @@ def insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked
 
 
         ###### sample a perturbed position and a small random alpha offset
-        preturbed_result = sample_perturb_insert_pos(insert_xyz_pos, current_viewing_angle, dataset, bbox, new_bboxes)
+        preturbed_result = sample_perturb_insert_pos(insert_xyz_pos, current_viewing_angle, dataset, bbox, new_bboxes+other_foreground_boxes)
         if preturbed_result is None:
             print("**** warning: skip current vehicle due to unsuccessful perturbation")
             continue
@@ -1065,7 +1106,9 @@ def insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked
             new_ann_info_list.append(new_ann_info_list_copy[i])
     assert(len(new_bboxes)==len(new_obj_ann_token_list)==len(new_ann_info_list))
 
-    ######## visualize without resampling and occlusion
+
+
+    # ######## visualize without resampling and occlusion
     # print("############## visualizing inserted cars with no resampling nor occlusion")
     # pcd = open3d.geometry.PointCloud()
     # pcd.points = open3d.utility.Vector3dVector(np.array(new_points_xyz_no_resampling_occlusion))
@@ -1102,6 +1145,7 @@ def insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked
 
     # open3d.visualization.draw_geometries([pcd, ground_pcd]+visboxes)
 
+    ############# VIDEO
     # cam_right_vec = np.array([1.0, 0.0, 0.0])
     # cam_pos = np.array([0.0, 0.0, 5.0])
     # cam_target = np.array([0.0, 20.0, 10.0])
@@ -1130,6 +1174,7 @@ def insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked
     # mat.point_size = 3.0
     # open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
 
+    ######## VIDEO
     # cam_right_vec = np.array([1.0, 0.0, 0.0])
     # cam_pos = np.array([0.0, 0.0, 5.0])
     # cam_target = np.array([0.0, 20.0, 10.0])
@@ -1139,8 +1184,6 @@ def insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked
     #                                 rotation_axis = np.array([0, 0, 1]), rotation_speed_deg=0.45,
     #                                 cam_position=cam_pos, cam_target=cam_target, 
     #                                 cam_up_vector=cam_up_vec, zoom=0.1)
-
-    
 
     # make the point dim be 5
     extras = np.zeros((len(new_scene_points_xyz), 2))
@@ -1211,6 +1254,6 @@ def insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked
     new_points_xyz.astype(np.float32).tofile(lidar_full_path)
 
     ############## Save the data needed to build the new database
-    token2sample_dict[lidar_sample_token] = (lidar_full_path, bounding_boxes, new_obj_ann_token_list, sample_records, new_ann_info_list)
+    token2sample_dict[lidar_sample_token] = (lidar_full_path, bounding_boxes+other_foreground_boxes, new_obj_ann_token_list+other_foreground_obj_ann_token_list, sample_records, new_ann_info_list+other_foreground_obj_ann_info_list)
 
-    return new_scene_points_xyz, new_bboxes, token2sample_dict, voxels_occupancy_has, original_vehicle_boxes, new_points_xyz, count, count_failure_types
+    return new_scene_points_xyz, new_bboxes, token2sample_dict, voxels_occupancy_has, original_vehicle_boxes, new_points_xyz, count, count_failure_types, other_foreground_boxes

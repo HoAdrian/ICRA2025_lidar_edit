@@ -353,6 +353,9 @@ def get_path_infos(data_path, nusc,train_scenes,val_scenes):
     train_token_list = []
     val_token_list = []
     for sample in nusc.sample:
+        #### This is a sample token from visualization of eval of voxel nexr in OpenPCNet
+        # if sample['token']!='5d773ca713f54023b34cd4718a5ee293':
+        #     continue
         scene_token = sample['scene_token']
         data_token = sample['data']['LIDAR_TOP']
         lidar_path = os.path.join(data_path, nusc.get('sample_data',data_token)['filename'])
@@ -369,6 +372,9 @@ def get_path_infos_sample(data_path, nusc,train_scenes,val_scenes):
     train_sample_list = []
     val_sample_list = []
     for sample in nusc.sample:
+        #### This is a sample token from visualization of eval of voxel nexr in OpenPCNet
+        # if sample['token']!='5d773ca713f54023b34cd4718a5ee293':
+        #     continue
         scene_token = sample['scene_token']
         data_token = sample['data']['LIDAR_TOP']
         lidar_path = os.path.join(data_path, nusc.get('sample_data',data_token)['filename'])
@@ -386,6 +392,9 @@ def get_path_infos_sample_tokens(data_path, nusc,train_scenes, val_scenes):
     train_sample_list = []
     val_sample_list = []
     for sample in nusc.sample:
+        #### This is a sample token from visualization of eval of voxel nexr in OpenPCNet
+        # if sample['token']!='5d773ca713f54023b34cd4718a5ee293':
+        #     continue
         scene_token = sample['scene_token']
         data_token = sample['data']['LIDAR_TOP']
         lidar_path = os.path.join(data_path, nusc.get('sample_data',data_token)['filename'])
@@ -452,6 +461,8 @@ vehicle_names = {
     'vehicle.trailer': 'trailer'
 }
 
+foreground_obj_to_remove_and_insert_names = {'vehicle.car': 'car'}
+
 def farthest_point_sample_batched(point, npoint):
     """
     Input:
@@ -486,6 +497,7 @@ class NuscenesForeground(data.Dataset):
         - voxelizer: the voxelizer using spherical coordinates that voxelize the entire point cloud scene
         - any_scene: even go through scenes that have no objects
         - filter_obj_point_with_seg: filter each obj point cloud with segmentation mask from lidar seg
+        - get_raw: True if we want to return obj_properties of all types of foreground objects, False if we only want vehicles
         '''
         if mode!="spherical" and mode!="polar":
             raise Exception(f"the mode {mode} is invalid")
@@ -583,8 +595,7 @@ class NuscenesForeground(data.Dataset):
                 sample = self.train_sample_list[index]
                 curr_sample_table_token = self.train_sample_table_token_list[index]
 
-            
-            
+           
             #### get lidar points and bounding boxes
             lidar_path = os.path.join(self.data_path, self.nusc.get('sample_data', sample_token)['filename'])
             points_xyz = np.fromfile(lidar_path, dtype = np.float32).reshape((-1, 5))
@@ -617,7 +628,10 @@ class NuscenesForeground(data.Dataset):
                 points_in_boxes.append(np.copy(points_3D[mask==1]))
                 points_in_box_mask = points_in_box_mask | mask
             
+            ###### TODO: new change: only get obj_regions (for removing object) for cars
+            car_box_idxs = [idx for idx in range(len(boxes)) if boxes[idx].name in foreground_obj_to_remove_and_insert_names]
             obj_regions = get_obj_regions(boxes, mode=self.mode, points_in_boxes=points_in_boxes)
+            obj_regions = obj_regions[car_box_idxs,...]
             occlude_mask = np.ones((len(points_xyz),))==1 #dummy, no use
             
             if not self.ignore_collect:
@@ -707,10 +721,12 @@ class NuscenesForeground(data.Dataset):
             not_empty = np.zeros((len(boxes), ))
             if not self.ignore_collect:
                 for i, box in enumerate(boxes):
+                    #print(i, f"{box.name}...")
                     bb_mask = points_in_box(box, points_3D.T, wlh_factor = 1.0)
                     ### TODO: evaluate how this may improve the performance
                     if np.sum(bb_mask)==0:
                         continue
+                    #print("HELLO")
                     not_empty[i] = 1
                     obj_points = points_3D[bb_mask]
                     category = boxes[i].name
@@ -768,7 +784,9 @@ class NuscenesForeground(data.Dataset):
                     box_cam_kitti, box_lidar_kitti = self.kitti_box_converter.nuscenes_gt_to_kitti(self.nusc, sample, nusc_lidar_box=box)
                     
                     box_not_empty = np.sum(points_in_box(box, points_3D.T, wlh_factor = 1.0))!=0
-                    if (category in vehicle_names or self.get_raw) and (box_not_empty) and len(obj_points)!=0: # TODO: I added len(obj_points)!=0 on 2nd Jan 2025
+                    use_this_box = (category in vehicle_names or self.get_raw) and (box_not_empty) and len(obj_points)!=0
+                    #print("JJJJJ: ", use_this_box)
+                    if use_this_box: # TODO: I added len(obj_points)!=0 on 2nd Jan 2025
                         obj_point_cloud_list.append(obj_points)
                         if category in vehicle_names:
                             obj_name_list.append(vehicle_names[category])
@@ -821,6 +839,9 @@ class NuscenesForeground(data.Dataset):
                         plt.show()
                         
             break
+
+        # print([box.name for box in obj_boxes_list])
+        # assert(1==0)
         
         if self.vis:
             plot_obj_regions([], [], points_xyz, 100, boxes, xlim=[-40,40], ylim=[-40,40], title="raw", path="./test_figures", name="raw", vis=False)

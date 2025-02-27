@@ -43,11 +43,11 @@ CUDA_VISIBLE_DEVICES=0 python main.py --ckpts anchorformer_dict.pth --config ./c
 
 
 #### centerPoint
-conda create -n centerpoint3 python=3.8 -y
-conda activate centerpoint3
-conda install pytorch==1.10.0 torchvision==0.11.0 torchaudio==0.10.0 cudatoolkit=11.3 cudatoolkit-dev=11.3 -c pytorch -c conda-forge
-pip install spconv
-pip install spconv-cu113
+# conda create -n centerpoint3 python=3.8 -y
+# conda activate centerpoint3
+# conda install pytorch==1.10.0 torchvision==0.11.0 torchaudio==0.10.0 cudatoolkit=11.3 cudatoolkit-dev=11.3 -c pytorch -c conda-forge
+# pip install spconv
+# pip install spconv-cu113
 ## run other setup scripts provided by the repository
 ## follow the instructions in the repo and run scripts like this
 # python tools/create_data.py nuscenes_data_prep --root_path=data/nuScenesAll --version="v1.0-trainval" --nsweeps=1

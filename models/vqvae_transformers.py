@@ -402,7 +402,11 @@ class MaskGIT(nn.Module):
     Transformer that generate code indices from the output of a trained VQ quantizer and encoder. 
 
     '''
-    def __init__(self, vqvae: VQVAETrans, voxelizer: Voxelizer, hidden_dim=512, depth=24, num_heads=16):
+    def __init__(self, vqvae: VQVAETrans, voxelizer: Voxelizer, hidden_dim=512, depth=24, num_heads=16, object_free_training=True):
+        '''
+        if object_free_training==True, then only train on voxels without foreground objects
+        otherwise, train on any voxels
+        '''
         super().__init__()
 
         #self.register_buffer('vqvae', vqvae, persistent=False)
@@ -418,7 +422,7 @@ class MaskGIT(nn.Module):
         self.num_code = self.vqvae.quantizer.n_e
         self.code_dim = self.vqvae.quantizer.e_dim
         self.transformer =  BidirectionalTransformer(num_class=self.num_code, input_dim=self.code_dim, img_size=(self.encoder.h, self.encoder.w), hidden_dim=hidden_dim, depth=depth, num_heads=num_heads, window_size=self.vqvae.window_size) #window size=8
-
+        self.object_free_training = object_free_training
         
     # def load_state_dict(self, state_dict, strict=True):
     #     # Create a copy of the state_dict to modify
@@ -548,7 +552,10 @@ class MaskGIT(nn.Module):
         ### which patch should be masked
         patch_mask = self.get_random_patch_mask(patch_mask_obj, mask_ratio=self.voxelizer.mask_schedule(np.random.uniform()))
         ### ignore patches containing object points
-        patch_mask = torch.logical_and(patch_mask==1, patch_mask_obj==0).float()
+        if self.object_free_training:
+            patch_mask = torch.logical_and(patch_mask==1, patch_mask_obj==0).float()
+        else:
+            patch_mask = patch_mask.float()
 
         ### remove masked occupancy voxel
         upsampled_patch_mask = self.patch2voxel_label(patch_mask.reshape(B,H_p,W_p), patch_size=self.patch_size) #(B, H, W)

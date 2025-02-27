@@ -58,8 +58,8 @@ if __name__=="__main__":
     vis = False
     voxelizer = Voxelizer(grid_size=config.grid_size, max_bound=config.max_bound, min_bound=config.min_bound)
     ## important: if you are just inserting the original object point cloud to debug, set filter_obj_point_with_seg to False
-    train_pt_dataset = NuscenesForeground(args.trainval_data_path, version = args.data_version, split = 'train', vis=vis, mode=mode, voxelizer=voxelizer, filter_obj_point_with_seg=False)
-    val_pt_dataset = NuscenesForeground(args.trainval_data_path, version = args.data_version, split = 'val', vis =vis, mode=mode, voxelizer=voxelizer, filter_obj_point_with_seg=False)
+    train_pt_dataset = NuscenesForeground(args.trainval_data_path, version = args.data_version, split = 'train', vis=vis, mode=mode, voxelizer=voxelizer, filter_obj_point_with_seg=False, get_raw=True)
+    val_pt_dataset = NuscenesForeground(args.trainval_data_path, version = args.data_version, split = 'val', vis =vis, mode=mode, voxelizer=voxelizer, filter_obj_point_with_seg=False, get_raw=True)
     train_dataset=PolarDataset(train_pt_dataset, voxelizer, flip_aug = False, rotate_aug = False, is_test=True, vis=vis, insert=True)
     val_dataset=PolarDataset(val_pt_dataset, voxelizer, flip_aug = False, rotate_aug = False, is_test=True, vis=vis, insert=True)
 
@@ -133,6 +133,8 @@ if __name__=="__main__":
     else:
         raise Exception("invalid split argument")
     samples = np.arange(len(dataset))
+    # print(len(dataset))
+    # assert(1==0)
 
 
     torch.cuda.empty_cache()
@@ -263,6 +265,7 @@ if __name__=="__main__":
         # names_list = ["original", "object removed"] + [f"{name}" for name in method_names]
         # if True:
         #     visualize_generated_pointclouds(voxelizer, voxels_occupancy_list, points_list, names_list, voxels_mask, image_path="./actor_insertion/vis_no_background_baselines", image_name=f"{k}_sample")
+        #     #visualize_generated_pointclouds(voxelizer, voxels_occupancy_list, points_list, names_list, voxels_mask, image_path=None, image_name=None)
 
         
         ###### insert vehicles to the new occupancy grids with foreground points removed by different methods
@@ -293,10 +296,10 @@ if __name__=="__main__":
                 # open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
 
                 #### insert at original positions
-                new_scene_points_xyz, new_bboxes, token2sample_dict, new_occupancy, original_vehicle_boxes, new_points_with_intensity, count_success_insertion, count_failure_types = insertion_vehicles_driver(intensity_model, inpainted_points_masked, inpainted_points, allocentric_dict, voxels_occupancy_has, insert_vehicle_names, dataset, voxelizer, token2sample_dict_list[method_idx], args, lidar_path_list[method_idx], mode=mode)
+                #new_scene_points_xyz, new_bboxes, token2sample_dict, new_occupancy, original_vehicle_boxes, new_points_with_intensity, count_success_insertion, count_failure_types, other_foreground_boxes = insertion_vehicles_driver(intensity_model, inpainted_points_masked, inpainted_points, allocentric_dict, voxels_occupancy_has, insert_vehicle_names, dataset, voxelizer, token2sample_dict_list[method_idx], args, lidar_path_list[method_idx], mode=mode)
                 
                 #### insert at perturbed original positions
-                #new_scene_points_xyz, new_bboxes, token2sample_dict, new_occupancy, original_vehicle_boxes, new_points_with_intensity, count_success_insertion, count_failure_types = insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked, inpainted_points, allocentric_dict, voxels_occupancy_has, insert_vehicle_names, dataset, voxelizer, token2sample_dict_list[method_idx], args, lidar_path_list[method_idx], mode=mode)
+                new_scene_points_xyz, new_bboxes, token2sample_dict, new_occupancy, original_vehicle_boxes, new_points_with_intensity, count_success_insertion, count_failure_types, other_foreground_boxes = insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked, inpainted_points, allocentric_dict, voxels_occupancy_has, insert_vehicle_names, dataset, voxelizer, token2sample_dict_list[method_idx], args, lidar_path_list[method_idx], mode=mode)
                 
             else:
                 assert(1==0)
@@ -324,15 +327,20 @@ if __name__=="__main__":
 
             ################## plot bird eye view
             # colors = []
-            # for box in new_bboxes:
-            #     if vehicle_names[box.name]=="bus":
-            #         colors.append('b')
-            #     elif vehicle_names[box.name]=="truck":
-            #         colors.append('g')
+            # for box in new_bboxes+other_foreground_boxes:
+            #     if box.name in vehicle_names:
+            #         if vehicle_names[box.name]=="bus":
+            #             colors.append('b')
+            #         elif vehicle_names[box.name]=="truck":
+            #             colors.append('g')
+            #         elif vehicle_names[box.name]=="car":
+            #             colors.append('r')
+            #         else:
+            #             colors.append('k')
             #     else:
-            #         colors.append('r')
+            #         colors.append('c')
             # colors_gt = []
-            # for box in original_vehicle_boxes:
+            # for box in original_vehicle_boxes+other_foreground_boxes:
             #     if box.name in vehicle_names:
             #         if vehicle_names[box.name]=="bus":
             #             colors_gt.append('b')
@@ -347,10 +355,10 @@ if __name__=="__main__":
 
             # #[box for box in (dataset.nonempty_boxes) if (box.name in vehicle_names and vehicle_names[box.name] in {"bus", "car", "truck"})]
             # curr_sample_table_token = dataset.obj_properties[14]
-            # plot_obj_regions([], [], new_scene_points_xyz, 40, new_bboxes, xlim=[-60,60], ylim=[-60,60], title=f"generated{k}", path="./actor_insertion/vis_insert_actual_baselines", name=f"{k}_insert_{method_names[method_idx]}_{curr_sample_table_token}", vis=False, colors=colors)
-            # plot_obj_regions([], [], dataset.points_xyz, 40, original_vehicle_boxes, xlim=[-60,60], ylim=[-60,60], title=f"original{k}", path="./actor_insertion/vis_insert_actual_baselines", name=f"{k}_original_{method_names[method_idx]}_{curr_sample_table_token}", vis=False, colors=colors_gt)
+            # plot_obj_regions([], [], new_scene_points_xyz, 40, new_bboxes+other_foreground_boxes, xlim=[-60,60], ylim=[-60,60], title=f"generated{k}", path="./actor_insertion/vis_insert_actual_baselines", name=f"{k}_insert_{method_names[method_idx]}_{curr_sample_table_token}", vis=False, colors=colors)
+            # plot_obj_regions([], [], dataset.points_xyz, 40, original_vehicle_boxes+other_foreground_boxes, xlim=[-60,60], ylim=[-60,60], title=f"original{k}", path="./actor_insertion/vis_insert_actual_baselines", name=f"{k}_original_{method_names[method_idx]}_{curr_sample_table_token}", vis=False, colors=colors_gt)
 
-            ############################ visualize original points and ground points
+            # ########################### visualize original points and ground points
             # print("VISUALIZING NEW POINT CLOUD HERE.......") 
             # pcd = open3d.geometry.PointCloud()
             # pcd.points = open3d.utility.Vector3dVector(np.array(new_scene_points_xyz))
@@ -381,16 +389,21 @@ if __name__=="__main__":
             # [4, 5], [5, 6], [6, 7], [4, 7],
             # [0, 4], [1, 5], [2, 6], [3, 7]]
             # visboxes = []
-            # for box in original_vehicle_boxes:
+            # for box in original_vehicle_boxes+other_foreground_boxes:
             #     line_set = open3d.geometry.LineSet()
             #     line_set.points = open3d.utility.Vector3dVector(box.corners().T)
             #     line_set.lines = open3d.utility.Vector2iVector(lines)
-            #     if vehicle_names[box.name]=="car":
-            #         colors = [[1, 0, 0] for _ in range(len(lines))]
-            #     elif vehicle_names[box.name]=="truck":
-            #         colors = [[0, 1, 0] for _ in range(len(lines))]
-            #     elif vehicle_names[box.name]=="bus":
-            #         colors = [[0, 0, 1] for _ in range(len(lines))]
+            #     if box.name in vehicle_names:
+            #         if vehicle_names[box.name]=="car":
+            #             colors = [[1, 0, 0] for _ in range(len(lines))]
+            #         elif vehicle_names[box.name]=="truck":
+            #             colors = [[0, 1, 0] for _ in range(len(lines))]
+            #         elif vehicle_names[box.name]=="bus":
+            #             colors = [[0, 0, 1] for _ in range(len(lines))]
+            #         else:
+            #             colors = [[0, 0, 0] for _ in range(len(lines))]
+            #     else:
+            #          colors = [[0, 1, 1] for _ in range(len(lines))]
             #     line_set.colors = open3d.utility.Vector3dVector(colors)
             #     visboxes.append(line_set)
             # open3d.visualization.draw_geometries([pcd, ground_pcd]+visboxes)

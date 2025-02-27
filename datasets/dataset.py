@@ -681,7 +681,7 @@ class PolarDataset(data.Dataset):
         voxels_occupancy_no = np.copy(voxels_occupancy_has)
         
         if self.use_random_mask: ########### set this True for training 
-            #### if a voxel of BEV_labels contains obj point, it is 1 for filtering out obj-containing mask in training
+            #### if a voxel of BEV_labels contains obj point, it is 1, for filtering out obj-containing mask in training
             voxels_labels = np.zeros(self.voxelizer.grid_size)
             obj_grid_ind = self.voxelizer.get_grid_ind(new_points_polar_has_bckgrnd[points_in_box_mask==1])
             voxels_labels[obj_grid_ind[:,0], obj_grid_ind[:,1], obj_grid_ind[:,2]] = 1
