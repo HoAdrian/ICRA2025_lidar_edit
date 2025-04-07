@@ -152,18 +152,26 @@ def main():
         last_epoch = start_epoch + 1
     else:
         ckpt_list = glob.glob(str(ckpt_dir / '*.pth'))
+        # print("HIIIIIII CHK: ", ckpt_list)
               
         if len(ckpt_list) > 0:
+            # print("HELLO ckpt list not zero in train.py")
             ckpt_list.sort(key=os.path.getmtime)
             while len(ckpt_list) > 0:
                 try:
                     it, start_epoch = model.load_params_with_optimizer(
                         ckpt_list[-1], to_cpu=dist_train, optimizer=optimizer, logger=logger
                     )
+                    
                     last_epoch = start_epoch + 1
+                    #assert(1==0)
                     break
                 except:
+                    # print(ckpt_list[-1])
+                    print("no optimizer...")
                     ckpt_list = ckpt_list[:-1]
+
+    #assert(1==0)
 
     model.train()  # before wrap to DistributedDataParallel to support fixed some parameters
     if dist_train:

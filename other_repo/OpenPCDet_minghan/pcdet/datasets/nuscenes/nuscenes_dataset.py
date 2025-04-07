@@ -100,7 +100,7 @@ class NuScenesDataset(DatasetTemplate):
         print("after balanced sampling dist: ", cls_dist_new, "\n")
         print("new sum prob", sum([v for k,v in cls_dist_new.items()]))
 
-        #raise Exception("HAHA sampling debugging")
+        raise Exception("HAHA sampling debugging")
 
         return sampled_infos
 

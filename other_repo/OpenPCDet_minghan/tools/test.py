@@ -166,6 +166,8 @@ def main():
 
     if not args.eval_all:
         num_list = re.findall(r'\d+', args.ckpt) if args.ckpt is not None else []
+        # print(re.findall(r'\d+', args.ckpt))
+        # assert(1==0)
         epoch_id = num_list[-1] if num_list.__len__() > 0 else 'no_number'
         eval_output_dir = eval_output_dir / ('epoch_%s' % epoch_id) / cfg.DATA_CONFIG.DATA_SPLIT['test']
     else:

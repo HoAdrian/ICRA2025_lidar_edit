@@ -97,6 +97,7 @@ if __name__=="__main__":
             
             ############ for handpicking vehicles
             samples = np.arange(len(dataset))
+            #samples = [17]
             np.random.shuffle(samples)
             # samples[0] = 40
             #samples = [196, 296]

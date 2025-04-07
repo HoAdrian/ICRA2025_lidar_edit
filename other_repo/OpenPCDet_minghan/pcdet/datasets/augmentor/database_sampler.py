@@ -15,7 +15,7 @@ from pcdet.datasets.kitti.kitti_object_eval_python import kitti_common
 class DataBaseSampler(object):
     def __init__(self, root_path, sampler_cfg, class_names, logger=None):
         #TODO: only cars bus and truck, shinghei
-        # class_names = {"car", "bus", "truck"}
+        #class_names = {"car", "bus", "truck"}
 
         self.root_path = root_path
         self.class_names = class_names

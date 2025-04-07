@@ -490,7 +490,7 @@ def farthest_point_sample_batched(point, npoint):
 import cv2 
 
 class NuscenesForeground(data.Dataset):
-    def __init__(self, data_path, version = 'v1.0-trainval', split = 'train', vis=False, mode="spherical", any_scene=False, ignore_collect=False, multisweep=False, get_raw=False, voxelizer=None, filter_obj_point_with_seg=True):
+    def __init__(self, data_path, version = 'v1.0-trainval', split = 'train', vis=False, mode="spherical", any_scene=False, ignore_collect=False, multisweep=False, get_raw=False, voxelizer=None, filter_obj_point_with_seg=True, only_cars=True):
         '''
         For getting foreground object points and their bounding boxes and other statistics
         - ignore_collect: if True, just return the bounding boxes and the lidar points without doing anything else
@@ -498,6 +498,7 @@ class NuscenesForeground(data.Dataset):
         - any_scene: even go through scenes that have no objects
         - filter_obj_point_with_seg: filter each obj point cloud with segmentation mask from lidar seg
         - get_raw: True if we want to return obj_properties of all types of foreground objects, False if we only want vehicles
+        - only_cars: True if we only want to remove and insert cars back
         '''
         if mode!="spherical" and mode!="polar":
             raise Exception(f"the mode {mode} is invalid")
@@ -555,6 +556,7 @@ class NuscenesForeground(data.Dataset):
         self.ignore_collect = ignore_collect
         self.any_scene = any_scene
         self.get_raw = get_raw
+        self.only_cars = only_cars
         self.voxelizer = voxelizer
         self.filter_obj_point_with_seg = filter_obj_point_with_seg
 
@@ -629,9 +631,11 @@ class NuscenesForeground(data.Dataset):
                 points_in_box_mask = points_in_box_mask | mask
             
             ###### TODO: new change: only get obj_regions (for removing object) for cars
-            car_box_idxs = [idx for idx in range(len(boxes)) if boxes[idx].name in foreground_obj_to_remove_and_insert_names]
             obj_regions = get_obj_regions(boxes, mode=self.mode, points_in_boxes=points_in_boxes)
-            obj_regions = obj_regions[car_box_idxs,...]
+            if self.only_cars:
+                car_box_idxs = [idx for idx in range(len(boxes)) if boxes[idx].name in foreground_obj_to_remove_and_insert_names]
+                obj_regions = obj_regions[car_box_idxs,...]
+
             occlude_mask = np.ones((len(points_xyz),))==1 #dummy, no use
             
             if not self.ignore_collect:
@@ -1168,6 +1172,8 @@ class NuscenesEval(data.Dataset):
         ### construct bounding boxes for evaluation: w=front side, l=left/right side
         ### make some number of boxes, each box is at a fixed distance(radius) from the lidar camera and is at different theta.
         ### rotate the box according to the specified allocentric angle
+
+
         wlh_mean = np.array([2.010759375860466, 5.078891212594277, 1.9137354633555423])
         wlh_std = np.array([0.45754378838278364, 2.0220000960643008, 0.6501887235757507])
         wlh = wlh_mean

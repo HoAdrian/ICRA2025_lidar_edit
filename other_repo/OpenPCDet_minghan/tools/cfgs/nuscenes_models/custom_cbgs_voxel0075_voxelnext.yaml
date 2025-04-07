@@ -140,7 +140,7 @@ MODEL:
 
 OPTIMIZATION:
     BATCH_SIZE_PER_GPU: 4
-    NUM_EPOCHS: 20 #40 #15 #90 #20
+    NUM_EPOCHS: 40 #30 #20 #40 #15 #90 #20 ##default is 20
 
     OPTIMIZER: adam_onecycle
     LR: 0.001 #0.0001 #0.001

@@ -686,7 +686,7 @@ def insertion_vehicles_driver(intensity_model, inpainted_points_masked, inpainte
     #     box_tmp.translate(np.array(pose_record['translation']))
     #     print(" box center in global coordinate: ", box_tmp.center)
 
-    if len(new_bboxes)!=0:
+    if len(new_bboxes)!=0 or True:
         print("saving point cloud .......")
         ############# save point cloud 
         #start_pc_time = timeit.default_timer()
@@ -828,7 +828,7 @@ def sample_perturb_insert_pos(original_insert_xyz, current_viewing_angle, datase
 
     for num_try in range(10): # try perturb at most 10 times, if it does not succeed, return None
         # sample a perturbed insert_pos
-        perturbed_insert_xyz_copy[:2] = perturb_2d(original_insert_xyz[:2], radius=2.5)
+        perturbed_insert_xyz_copy[:2] = perturb_2d(original_insert_xyz[:2], radius=2.5*2)
 
         for rand_alpha in alphas:
             insert_box_copy = copy.deepcopy(insert_box)
@@ -1108,7 +1108,7 @@ def insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked
 
 
 
-    # ######## visualize without resampling and occlusion
+    ######## visualize without resampling and occlusion
     # print("############## visualizing inserted cars with no resampling nor occlusion")
     # pcd = open3d.geometry.PointCloud()
     # pcd.points = open3d.utility.Vector3dVector(np.array(new_points_xyz_no_resampling_occlusion))
@@ -1143,9 +1143,9 @@ def insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked
     #     line_set.colors = open3d.utility.Vector3dVector(colors)
     #     visboxes.append(line_set)
 
-    # open3d.visualization.draw_geometries([pcd, ground_pcd]+visboxes)
+    # open3d.visualization.draw_geometries([pcd])
 
-    ############# VIDEO
+    # ############ VIDEO
     # cam_right_vec = np.array([1.0, 0.0, 0.0])
     # cam_pos = np.array([0.0, 0.0, 5.0])
     # cam_target = np.array([0.0, 20.0, 10.0])
@@ -1174,7 +1174,7 @@ def insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked
     # mat.point_size = 3.0
     # open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
 
-    ######## VIDEO
+    ####### VIDEO ######
     # cam_right_vec = np.array([1.0, 0.0, 0.0])
     # cam_pos = np.array([0.0, 0.0, 5.0])
     # cam_target = np.array([0.0, 20.0, 10.0])
@@ -1182,6 +1182,18 @@ def insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked
     # cam_up_vec = np.cross(cam_right_vec, cam_front_vec)#np.array([0.5, 0.5,  1.0])
     # visualize_rotating_open3d_objects([pcd], offsets=[[0.1,0,0]], shift_to_centroid=False, 
     #                                 rotation_axis = np.array([0, 0, 1]), rotation_speed_deg=0.45,
+    #                                 cam_position=cam_pos, cam_target=cam_target, 
+    #                                 cam_up_vector=cam_up_vec, zoom=0.1)
+    
+    # ################ fixed camera + no rotation ################
+    # cam_right_vec = np.array([1.0, 0.0, 0.0])
+    # cam_pos = np.array([0.0, 10.0, 5.0])
+    # cam_target = np.array([0.0, 15.0, 8.0])
+    # cam_front_vec = cam_target - cam_pos
+    # cam_up_vec = np.cross(cam_right_vec, cam_front_vec)#np.array([0.5, 0.5,  1.0])
+    
+    # visualize_rotating_open3d_objects([pcd], offsets=[[0.1,0,0]], shift_to_centroid=False, 
+    #                                 rotation_axis = np.array([0, 0, 1]), rotation_speed_deg=0.0,
     #                                 cam_position=cam_pos, cam_target=cam_target, 
     #                                 cam_up_vector=cam_up_vec, zoom=0.1)
 

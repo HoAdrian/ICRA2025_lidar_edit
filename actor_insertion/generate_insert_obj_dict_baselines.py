@@ -59,7 +59,7 @@ if __name__=="__main__":
     voxelizer = Voxelizer(grid_size=config.grid_size, max_bound=config.max_bound, min_bound=config.min_bound)
     ## important: if you are just inserting the original object point cloud to debug, set filter_obj_point_with_seg to False
     train_pt_dataset = NuscenesForeground(args.trainval_data_path, version = args.data_version, split = 'train', vis=vis, mode=mode, voxelizer=voxelizer, filter_obj_point_with_seg=False, get_raw=True)
-    val_pt_dataset = NuscenesForeground(args.trainval_data_path, version = args.data_version, split = 'val', vis =vis, mode=mode, voxelizer=voxelizer, filter_obj_point_with_seg=False, get_raw=True)
+    val_pt_dataset = NuscenesForeground(args.trainval_data_path, version = args.data_version, split = 'val', vis =vis, mode=mode, voxelizer=voxelizer, filter_obj_point_with_seg=False, get_raw=True, any_scene=True)
     train_dataset=PolarDataset(train_pt_dataset, voxelizer, flip_aug = False, rotate_aug = False, is_test=True, vis=vis, insert=True)
     val_dataset=PolarDataset(val_pt_dataset, voxelizer, flip_aug = False, rotate_aug = False, is_test=True, vis=vis, insert=True)
 
@@ -192,22 +192,25 @@ if __name__=="__main__":
     #samples = samples[10000:20001] #I collected up to 19600
     #samples = samples[19600:20001]
     for k in samples:
+        #k = 17
+        k = 33
+        #k = 69
         #k = 40
         #k = 40
         #k = 66
-        #k = 240
+        # k = 240
         ### nice scene
         #k =  62#48#39 #42
         #k = 71
         #k = 80
-        #k = 49
+        # k = 49
         #k = 44
         #k = 60
         #k = 79
         #k = 14
         #k = 16 #14 collide with inpainted points
-        #k = 7
-        #k = 17
+        # k = 7
+        # k = 17
         #k = 44 #bus, truck, car
         #k = 52 # weird bus
         #k = 14
@@ -218,8 +221,15 @@ if __name__=="__main__":
         #mini: val split: good 
         print(f"NOTE: =============== currently at Sample {k} =========================")
         return_from_data = dataset.__getitem__(k)
-        if return_from_data is None:
+        if return_from_data is None and args.split=='val':
+            print("we should include all scenes from val ...")
+            print(f"sample_idx: {k}")
+            assert(1==0)
             continue
+
+        print(f"=====++++ current token2sample length: {len(token2sample_dict_list[0])}")
+
+        #assert(k==len(token2sample_dict_list[0]))
 
         count_orig_vehicle = count_vehicle_name_in_box_list(dataset.nonempty_boxes, vehicle_names_dict=vehicle_names)
         count_car, count_bus, count_truck = count_orig_vehicle["car"], count_orig_vehicle["bus"], count_orig_vehicle["truck"]
@@ -258,6 +268,7 @@ if __name__=="__main__":
             else:
                 raise Exception("Invalid method idx")
         
+        ############## visualize inpainted point cloud ############
         # voxels_occupancy_no_copy = torch.clone(voxels_occupancy_no)
         # voxels_occupancy_no_copy[voxels_mask.permute(0,3,1,2)==1] = 0
         # voxels_occupancy_list = [voxels_occupancy_has[0].permute(1,2,0), voxels_occupancy_no_copy[0].permute(1,2,0)] + [gen_voxels[0].permute(1,2,0) for gen_voxels in gen_binary_voxels_list]
@@ -296,7 +307,7 @@ if __name__=="__main__":
                 # open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
 
                 #### insert at original positions
-                #new_scene_points_xyz, new_bboxes, token2sample_dict, new_occupancy, original_vehicle_boxes, new_points_with_intensity, count_success_insertion, count_failure_types, other_foreground_boxes = insertion_vehicles_driver(intensity_model, inpainted_points_masked, inpainted_points, allocentric_dict, voxels_occupancy_has, insert_vehicle_names, dataset, voxelizer, token2sample_dict_list[method_idx], args, lidar_path_list[method_idx], mode=mode)
+                # new_scene_points_xyz, new_bboxes, token2sample_dict, new_occupancy, original_vehicle_boxes, new_points_with_intensity, count_success_insertion, count_failure_types, other_foreground_boxes = insertion_vehicles_driver(intensity_model, inpainted_points_masked, inpainted_points, allocentric_dict, voxels_occupancy_has, insert_vehicle_names, dataset, voxelizer, token2sample_dict_list[method_idx], args, lidar_path_list[method_idx], mode=mode)
                 
                 #### insert at perturbed original positions
                 new_scene_points_xyz, new_bboxes, token2sample_dict, new_occupancy, original_vehicle_boxes, new_points_with_intensity, count_success_insertion, count_failure_types, other_foreground_boxes = insertion_vehicles_driver_perturbed(intensity_model, inpainted_points_masked, inpainted_points, allocentric_dict, voxels_occupancy_has, insert_vehicle_names, dataset, voxelizer, token2sample_dict_list[method_idx], args, lidar_path_list[method_idx], mode=mode)
@@ -358,7 +369,7 @@ if __name__=="__main__":
             # plot_obj_regions([], [], new_scene_points_xyz, 40, new_bboxes+other_foreground_boxes, xlim=[-60,60], ylim=[-60,60], title=f"generated{k}", path="./actor_insertion/vis_insert_actual_baselines", name=f"{k}_insert_{method_names[method_idx]}_{curr_sample_table_token}", vis=False, colors=colors)
             # plot_obj_regions([], [], dataset.points_xyz, 40, original_vehicle_boxes+other_foreground_boxes, xlim=[-60,60], ylim=[-60,60], title=f"original{k}", path="./actor_insertion/vis_insert_actual_baselines", name=f"{k}_original_{method_names[method_idx]}_{curr_sample_table_token}", vis=False, colors=colors_gt)
 
-            # ########################### visualize original points and ground points
+            ########################### visualize original points and ground points
             # print("VISUALIZING NEW POINT CLOUD HERE.......") 
             # pcd = open3d.geometry.PointCloud()
             # pcd.points = open3d.utility.Vector3dVector(np.array(new_scene_points_xyz))
@@ -397,16 +408,35 @@ if __name__=="__main__":
             #         if vehicle_names[box.name]=="car":
             #             colors = [[1, 0, 0] for _ in range(len(lines))]
             #         elif vehicle_names[box.name]=="truck":
+            #             #continue
             #             colors = [[0, 1, 0] for _ in range(len(lines))]
             #         elif vehicle_names[box.name]=="bus":
+            #             #continue
             #             colors = [[0, 0, 1] for _ in range(len(lines))]
             #         else:
+            #             #continue
             #             colors = [[0, 0, 0] for _ in range(len(lines))]
             #     else:
+            #          #continue
             #          colors = [[0, 1, 1] for _ in range(len(lines))]
             #     line_set.colors = open3d.utility.Vector3dVector(colors)
             #     visboxes.append(line_set)
-            # open3d.visualization.draw_geometries([pcd, ground_pcd]+visboxes)
+
+            # #open3d.visualization.draw_geometries([pcd, ground_pcd]+visboxes)
+
+            # ######## visualize fixed camera view here #######
+            # ################ fixed camera + no rotation ################
+            # cam_right_vec = np.array([1.0, 0.0, 0.0])
+            # cam_pos = np.array([0.0, 10.0, 5.0])
+            # cam_target = np.array([0.0, 15.0, 8.0])
+            # cam_front_vec = cam_target - cam_pos
+            # cam_up_vec = np.cross(cam_right_vec, cam_front_vec)#np.array([0.5, 0.5,  1.0])
+           
+            # visualize_rotating_open3d_objects([pcd]+visboxes, offsets=[[0.1,0,0]], shift_to_centroid=False, 
+            #                                 rotation_axis = np.array([0, 0, 1]), rotation_speed_deg=0.0,
+            #                                 cam_position=cam_pos, cam_target=cam_target, 
+            #                                 cam_up_vector=cam_up_vec, zoom=0.1)
+
             
     end_time = timeit.default_timer()
     print("HEYYYO: time used for generating insertion dataset: ", end_time-start_time, "seconds")

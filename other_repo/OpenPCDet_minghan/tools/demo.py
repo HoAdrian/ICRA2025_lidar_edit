@@ -49,9 +49,9 @@ class DemoDataset(DatasetTemplate):
     def __getitem__(self, index):
         if self.ext == '.bin':
             points = np.fromfile(self.sample_file_list[index], dtype=np.float32).reshape(-1, 5)
-            if points.shape[-1]==4:
-                extras = np.zeros((len(points), 1))
-                points = np.concatenate((points, extras), axis=1)
+            # if points.shape[-1]==4:
+            #     extras = np.zeros((len(points), 1))
+            #     points = np.concatenate((points, extras), axis=1)
         elif self.ext == '.npy':
             points = np.load(self.sample_file_list[index])
         else:
@@ -96,25 +96,33 @@ def main():
     model.load_params_from_file(filename=args.ckpt, logger=logger, to_cpu=True)
     model.cuda()
     model.eval()
+    object_count = 0
     with torch.no_grad():
         for idx, data_dict in enumerate(demo_dataset):
+            print(f"############ current data [{idx+1}/{len(demo_dataset)}]")
             logger.info(f'Visualized sample index: \t{idx + 1}')
             data_dict = demo_dataset.collate_batch([data_dict])
             load_data_to_gpu(data_dict)
             pred_dicts, _ = model.forward(data_dict)
 
-            print("PRED DICT +++++++++++++++++++++++", pred_dicts)
+            # print("PRED DICT +++++++++++++++++++++++", pred_dicts)
 
-            V.draw_scenes(
-                points=data_dict['points'][:, 1:], ref_boxes=pred_dicts[0]['pred_boxes'],
-                ref_scores=pred_dicts[0]['pred_scores'], ref_labels=pred_dicts[0]['pred_labels']
-            )
+            if len(pred_dicts[0]['pred_boxes'])>3 and False:
+                V.draw_scenes(
+                    points=data_dict['points'][:, 1:], ref_boxes=pred_dicts[0]['pred_boxes'],
+                    ref_scores=pred_dicts[0]['pred_scores'], ref_labels=pred_dicts[0]['pred_labels']
+                )
+                if not OPEN3D_FLAG:
+                    mlab.show(stop=True)
 
-            if not OPEN3D_FLAG:
-                mlab.show(stop=True)
+            object_count+=len(pred_dicts[0]['pred_boxes'])
+            
+            print(f">> SO FAR object avg count: {object_count/len(demo_dataset)}")
 
+    print(f"object avg count: {object_count/len(demo_dataset)}")
     logger.info('Demo done.')
-
+    logger.critical(f"object avg count: {object_count/len(demo_dataset)}")
+    
 
 if __name__ == '__main__':
     main()

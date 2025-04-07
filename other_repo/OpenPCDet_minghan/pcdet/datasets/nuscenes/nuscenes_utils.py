@@ -310,7 +310,38 @@ def obtain_sensor2top(
 
 import pickle
 import time
+import os
+import logging
+def create_logger(logging_root, log_name):
+    logger = logging.getLogger('my_logger')
+    # Set the default logging level (this can be adjusted as needed)
+    logger.setLevel(logging.DEBUG)
+    # Create two handlers for logging to two different files
+    file_handler1 = logging.FileHandler(os.path.join(logging_root, log_name))
+    # Set the log level for each handler (optional)
+    file_handler1.setLevel(logging.DEBUG)   # For detailed logging
+    # Create a formatter to define the log message format
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    # Assign the formatter to both handlers
+    file_handler1.setFormatter(formatter)
+    # Add the handlers to the logger
+    logger.addHandler(file_handler1)
+
+    # Example logging
+    # self.logger.debug("This is a debug message")
+    # self.logger.info("This is an info message")
+    # self.logger.warning("This is a warning message")
+    # self.logger.error("This is an error message")
+    # self.logger.critical("This is a critical message")
+    logger.info("\n")
+    logger.info(">>>>>>> START LOGGING <<<<<<<<")
+    return logger
+
+from nuscenes.utils.geometry_utils import points_in_box
+foreground_obj_to_remove_and_insert_names = {'vehicle.car': 'car'}
 def fill_trainval_infos(data_path, nusc, train_scenes, val_scenes, test=False, max_sweeps=10, with_cam=False, replace_with_mine_path=None):
+    #logger = create_logger("/home/shinghei/lidar_generation/OpenPCDet_minghan/data/nuscenes/v1.0-trainval", "num_box.log")
+
     train_nusc_infos = []
     val_nusc_infos = []
     progress_bar = tqdm.tqdm(total=len(nusc.sample), desc='create_info', dynamic_ncols=True)
@@ -364,9 +395,9 @@ def fill_trainval_infos(data_path, nusc, train_scenes, val_scenes, test=False, m
         ref_lidar_path, ref_boxes, _ = get_sample_data(nusc, ref_sd_token)
 
         ###### for finetuning
-        if replace_with_mine_path is None:
-            if ref_sd_token in token2sample_dict:
-                continue
+        # if replace_with_mine_path is None:
+        #     if ref_sd_token in token2sample_dict:
+        #         continue
         
         if replace_with_mine_path is not None:
             if ref_sd_token not in token2sample_dict:
@@ -375,7 +406,35 @@ def fill_trainval_infos(data_path, nusc, train_scenes, val_scenes, test=False, m
             print("REPLACING")
             #assert(sample['scene_token'] not in train_scenes)
             ref_lidar_path, ref_boxes, my_annotation_tokens, sample_records, ann_info_list = token2sample_dict[ref_sd_token]
-            print("SEE lidar THE PATH in fill trainval nusc utils: ", ref_lidar_path)
+
+            #### remove boxes fewer than 5 points
+            lidar_points_xyz = np.fromfile(str(ref_lidar_path), dtype=np.float32, count=-1).reshape([-1, 5])[:, :3]
+            
+            num_points_each_box = [np.sum(points_in_box(ref_boxes[idx], lidar_points_xyz.T, wlh_factor = 1.0).astype(int)) for idx in range(len(ref_boxes))]
+            visible_box_idxs = [idx for idx in range(len(ref_boxes)) if num_points_each_box[idx]>=1] #TODO change to >=1 if eval instead of 5
+            ref_boxes = [ref_boxes[idx] for idx in visible_box_idxs]
+            num_points_each_box = [num_points_each_box[idx] for idx in visible_box_idxs]
+            my_annotation_tokens = [my_annotation_tokens[idx] for idx in visible_box_idxs]
+            ann_info_list = [ann_info_list[idx] for idx in visible_box_idxs]
+
+            print(len(ref_boxes))
+            print(len(visible_box_idxs))
+            if len(visible_box_idxs)==0:
+                continue
+            print("HELLo")
+            #### TODO: filter boxes to keep only cars if necessary
+            # car_idxs = [idx for idx in range(len(ref_boxes)) if ref_boxes[idx].name in foreground_obj_to_remove_and_insert_names]
+            # ref_boxes = [ref_boxes[idx] for idx in car_idxs]
+            # my_annotation_tokens = [my_annotation_tokens[idx] for idx in car_idxs]
+            # ann_info_list = [ann_info_list[idx] for idx in car_idxs]
+
+            #### TODO: adjust the lidar path if necessary:
+            # insert_str = "v1.0-trainval"
+            # parts = ref_lidar_path.split("/")  # Split the path into parts
+            # parts.insert(parts.index("nuscenes") + 1, insert_str)  # Insert after 'nuscenes'
+            # new_path = "/".join(parts)  # Join back into a path
+            # ref_lidar_path = new_path
+            # print("SEE lidar THE PATH in fill trainval nusc utils: ", ref_lidar_path)
 
         ref_cam_front_token = sample['data']['CAM_FRONT']
         ref_cam_path, _, ref_cam_intrinsic = nusc.get_sample_data(ref_cam_front_token)
@@ -491,10 +550,22 @@ def fill_trainval_infos(data_path, nusc, train_scenes, val_scenes, test=False, m
                 annotations = my_annotation_tokens
                 annotations = [nusc.get('sample_annotation', token) for token in my_annotation_tokens]
 
-            # the filtering gives 0.5~1 map improvement
-            num_lidar_pts = np.array([anno['num_lidar_pts'] for anno in annotations])
-            num_radar_pts = np.array([anno['num_radar_pts'] for anno in annotations])
-            mask = (num_lidar_pts + num_radar_pts > 0)
+            # # the filtering gives 0.5~1 map improvement
+            # num_lidar_pts = np.array([anno['num_lidar_pts'] for anno in annotations])
+            # num_radar_pts = np.array([anno['num_radar_pts'] for anno in annotations])
+            # mask = (num_lidar_pts + num_radar_pts > 0)
+
+            if replace_with_mine_path is not None:
+                num_lidar_pts = np.array(num_points_each_box)
+                num_radar_pts = np.zeros_like(num_lidar_pts)
+                mask = np.array([True for _ in range(len(ref_boxes))])
+                assert(len(ref_boxes)==len(num_points_each_box))
+            else:
+                # the filtering gives 0.5~1 map improvement
+                num_lidar_pts = np.array([anno['num_lidar_pts'] for anno in annotations])
+                num_radar_pts = np.array([anno['num_radar_pts'] for anno in annotations])
+                mask = (num_lidar_pts + num_radar_pts > 0)
+
 
             locs = np.array([b.center for b in ref_boxes]).reshape(-1, 3)
             dims = np.array([b.wlh for b in ref_boxes]).reshape(-1, 3)[:, [1, 0, 2]]  # wlh == > dxdydz (lwh)
@@ -503,6 +574,11 @@ def fill_trainval_infos(data_path, nusc, train_scenes, val_scenes, test=False, m
             names = np.array([b.name for b in ref_boxes])
             tokens = np.array([b.token for b in ref_boxes])
             gt_boxes = np.concatenate([locs, dims, rots, velocity[:, :2]], axis=1)
+
+            # print(gt_boxes.shape)
+            # print(len(ref_boxes))
+
+            #logger.debug(len(gt_boxes))
 
             assert len(annotations) == len(gt_boxes) == len(velocity)
 

@@ -60,16 +60,38 @@ from nuscenes.utils.splits import is_predefined_split
 # from utils.splits import is_predefined_split
 
 import pickle
+import copy
+
+from nuscenes.utils.geometry_utils import points_in_box
 
 which_gen = "ours"
 my_version = "v1.0-trainval"
 my_root = f"/home/shinghei/lidar_generation/OpenPCDet_minghan/data/nuscenes/{my_version}"
 REPLACE_MINE_PATH = f"{my_root}/{which_gen}/{my_version}/token2sample.pickle"
-TRAIN_WITH_MY_AUGMENT=False#True # set this to augment our generated data with nusc data
+TRAIN_WITH_MY_AUGMENT=False #True # set this to augment our generated data with nusc data
 
 with open(REPLACE_MINE_PATH, 'rb') as handle:
     token2sample_dict = pickle.load(handle)
-    
+
+keys = copy.deepcopy(list(token2sample_dict.keys()))
+for lidar_token in keys:
+    print(f"modifying token2sample_dict to remove empty box")
+    ref_lidar_path, ref_boxes, my_annotation_tokens, sample_records, ann_info_list = token2sample_dict[lidar_token]
+    lidar_points_xyz = np.fromfile(str(ref_lidar_path), dtype=np.float32, count=-1).reshape([-1, 5])[:, :3]
+    num_points_each_box = [np.sum(points_in_box(ref_boxes[idx], lidar_points_xyz.T, wlh_factor = 1.0).astype(int)) for idx in range(len(ref_boxes))]
+    visible_box_idxs = [idx for idx in range(len(ref_boxes)) if num_points_each_box[idx]>=1] #5
+
+    ref_boxes = [ref_boxes[idx] for idx in visible_box_idxs]
+    num_points_each_box = [num_points_each_box[idx] for idx in visible_box_idxs]
+    my_annotation_tokens = [my_annotation_tokens[idx] for idx in visible_box_idxs]
+    ann_info_list = [ann_info_list[idx] for idx in visible_box_idxs]
+
+    if len(ref_boxes)==0:
+        del token2sample_dict[lidar_token]
+    else:
+        token2sample_dict[lidar_token] = (ref_lidar_path, ref_boxes, my_annotation_tokens, sample_records, ann_info_list)
+
+
 
 def get_my_data(lidar_token):
     '''
@@ -207,9 +229,9 @@ def load_gt(nusc: NuScenes, eval_split: str, box_cls, verbose: bool = False) -> 
             box = my_boxes[i]
             sample_annotation['num_lidar_pts'] = int(np.sum(points_in_box(box, lidar_points.T, wlh_factor = 1.0).astype(int)))
             ##### TODO: set threshold filer
-            if sample_annotation['num_lidar_pts']<5:
-                continue
-            sample_annotation["num_radar_pts"] = int(sample_annotation["num_radar)ots"])
+            # if sample_annotation['num_lidar_pts']<5:
+            #     continue
+            sample_annotation["num_radar_pts"] = 0 #int(sample_annotation["num_radar)ots"])
 
             print(sample_annotation["category_name"])
             print(box.name)
@@ -486,7 +508,7 @@ def filter_eval_boxes(nusc: NuScenes,
         dist_filter += len(eval_boxes[sample_token])
 
         # Then remove boxes with zero points in them. Eval boxes have -1 points by default.
-        eval_boxes.boxes[sample_token] = [box for box in eval_boxes[sample_token] if not box.num_pts == 0]
+        eval_boxes.boxes[sample_token] = [box for box in eval_boxes[sample_token]]
         point_filter += len(eval_boxes[sample_token])
 
         # # Perform bike-rack filtering.
@@ -576,6 +598,8 @@ class DetectionEval:
         self.cfg = config
 
         # Check result file exists.
+        print(result_path)
+        # assert(1==0)
         assert os.path.exists(result_path), 'Error: The result file does not exist!'
 
         # Make dirs.
@@ -600,6 +624,8 @@ class DetectionEval:
                 DetectionBox, sample_tokens=sample_tokens_of_custom_split, verbose=verbose)
             self.gt_boxes = load_gt_of_sample_tokens(nusc, sample_tokens_of_custom_split, DetectionBox, verbose=verbose)
 
+        print(f"self pred boxes sample len: {len(set(self.pred_boxes.sample_tokens))}")
+        print(f"self gt boxes sample len: {len(set(self.gt_boxes.sample_tokens))}")
         assert set(self.pred_boxes.sample_tokens) == set(self.gt_boxes.sample_tokens), \
             "Samples in split doesn't match samples in predictions."
         
@@ -718,7 +744,7 @@ class DetectionEval:
         :param render_curves: Whether to render PR and TP curves to disk.
         :return: A dict that stores the high-level metrics and meta data.
         """
-        plot_examples = 10 #len(self.sample_tokens)
+        plot_examples = 50 #len(self.sample_tokens)
         if plot_examples > 0:
             # Select a random but fixed subset to plot.
             random.seed(42)
@@ -1199,6 +1225,7 @@ def create_nuscenes_info(version, data_path, save_path, max_sweeps=10, with_cam=
     from nuscenes.nuscenes import NuScenes
     from nuscenes.utils import splits
     from . import nuscenes_utils
+    ## TODO: concatenate the version if you like
     data_path = data_path / version
     save_path = save_path / version
 

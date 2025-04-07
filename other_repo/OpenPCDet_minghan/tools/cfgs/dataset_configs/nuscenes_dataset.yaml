@@ -19,7 +19,7 @@ INFO_PATH: {
 
 POINT_CLOUD_RANGE: [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
 
-BALANCED_RESAMPLING: True #False #True # True for pretraining model from scratch, False for training experiment
+BALANCED_RESAMPLING: False #True #False #True # True for pretraining model from scratch, False for training experiment
 
 DATA_AUGMENTOR:
     DISABLE_AUG_LIST: ['placeholder']

@@ -447,16 +447,31 @@ def visualize_generated_pointclouds(voxelizer, voxels_occupancy_list, points_lis
             #open3d.visualization.draw_geometries([pcd], window_name="Point Cloud Viewer")
             #open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
         ### rotating point cloud to get nice video, change j as you need ###
-        # if j==0:
-        #     cam_right_vec = np.array([1.0, 0.0, 0.0])
-        #     cam_pos = np.array([0.0, 0.0, 5.0])
-        #     cam_target = np.array([0.0, 20.0, 10.0])
-        #     cam_front_vec = cam_target - cam_pos
-        #     cam_up_vec = np.cross(cam_right_vec, cam_front_vec)#np.array([0.5, 0.5,  1.0])
-        #     visualize_rotating_open3d_objects([pcd], offsets=[[0.1,0,0]], shift_to_centroid=False, 
-        #                                     rotation_axis = np.array([0, 0, 1]), rotation_speed_deg=0.45,
-        #                                     cam_position=cam_pos, cam_target=cam_target, 
-        #                                     cam_up_vector=cam_up_vec, zoom=0.1)
+
+
+        if j==2:
+            ############### rotate pointcloud ###########
+            # cam_right_vec = np.array([1.0, 0.0, 0.0])
+            # cam_pos = np.array([0.0, 0.0, 5.0])
+            # cam_target = np.array([0.0, 20.0, 10.0])
+            # cam_front_vec = cam_target - cam_pos
+            # cam_up_vec = np.cross(cam_right_vec, cam_front_vec)#np.array([0.5, 0.5,  1.0])
+            # visualize_rotating_open3d_objects([pcd], offsets=[[0.1,0,0]], shift_to_centroid=False, 
+            #                                 rotation_axis = np.array([0, 0, 1]), rotation_speed_deg=0.45,
+            #                                 cam_position=cam_pos, cam_target=cam_target, 
+            #                                 cam_up_vector=cam_up_vec, zoom=0.1)
+            
+            ################ fixed camera + no rotation ################
+            cam_right_vec = np.array([1.0, 0.0, 0.0])
+            cam_pos = np.array([0.0, 10.0, 5.0])
+            cam_target = np.array([0.0, 15.0, 8.0])
+            cam_front_vec = cam_target - cam_pos
+            cam_up_vec = np.cross(cam_right_vec, cam_front_vec)#np.array([0.5, 0.5,  1.0])
+           
+            visualize_rotating_open3d_objects([pcd], offsets=[[0.1,0,0]], shift_to_centroid=False, 
+                                            rotation_axis = np.array([0, 0, 1]), rotation_speed_deg=0.0,
+                                            cam_position=cam_pos, cam_target=cam_target, 
+                                            cam_up_vector=cam_up_vec, zoom=0.1)
 
         if image_path is None:
             #open3d.visualization.draw_geometries([pcd], window_name="Point Cloud Viewer")
@@ -515,8 +530,8 @@ def visualize_rotating_open3d_objects(open3d_objects, offsets=[[0.1,0,0]], shift
             #obj.translate(cam_position)
             # if shift_to_centroid:
             #     obj.translate(-np.mean(np.asarray(obj.points), axis=0))
-        else:
-            raise ValueError("Invalid open3d object. Can only be either open3d mesh, or open3d point cloud.")            
+        # else:
+        #     raise ValueError("Invalid open3d object. Can only be either open3d mesh, or open3d point cloud.")            
             
         # if len(offsets) == 1:
         #     obj.translate(tuple(i*np.array(offsets[0])))
