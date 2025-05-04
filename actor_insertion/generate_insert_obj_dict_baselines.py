@@ -138,7 +138,7 @@ if __name__=="__main__":
 
 
     torch.cuda.empty_cache()
-    seed = 100
+    seed = 100 #300 for website demo #100
     torch.manual_seed(seed)
     np.random.seed(seed)
     
@@ -192,10 +192,14 @@ if __name__=="__main__":
     #samples = samples[10000:20001] #I collected up to 19600
     #samples = samples[19600:20001]
     for k in samples:
+        ### website demo mini
         #k = 17
-        k = 33
-        #k = 69
-        #k = 40
+        # k = 33
+        # k = 130 #137
+        # k = 290 ### train mini
+        #######
+        k = 69
+        # k = 40
         #k = 40
         #k = 66
         # k = 240
@@ -379,7 +383,7 @@ if __name__=="__main__":
             # mat = open3d.visualization.rendering.MaterialRecord()
             # mat.shader = 'defaultUnlit'
             # mat.point_size = 2.0
-            # open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
+            ##open3d.visualization.draw([{'name': 'pcd', 'geometry': pcd, 'material': mat}], show_skybox=False)
 
             # print("VISUALIZING original POINT CLOUD HERE.......") 
             # pcd = open3d.geometry.PointCloud()
@@ -422,7 +426,7 @@ if __name__=="__main__":
             #     line_set.colors = open3d.utility.Vector3dVector(colors)
             #     visboxes.append(line_set)
 
-            # #open3d.visualization.draw_geometries([pcd, ground_pcd]+visboxes)
+            # ## open3d.visualization.draw_geometries([pcd, ground_pcd]+visboxes)
 
             # ######## visualize fixed camera view here #######
             # ################ fixed camera + no rotation ################

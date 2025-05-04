@@ -84,14 +84,14 @@ if __name__=="__main__":
         max_num_truck = 1e9#100
         max_num_car = 1e9#100
         num_car, num_truck, num_bus = 0,0,0
-        datasets = [val_dataset]#[val_dataset, train_dataset]
+        datasets = [val_dataset, train_dataset]#[val_dataset, train_dataset]
 
         # use val_dataset first if it is mini
         for i, dataset in enumerate(datasets):
             if i==1:
                 is_train=True
                 ### for only using val dataset
-                break
+                #break
             else:
                 is_train=False
             
@@ -102,6 +102,7 @@ if __name__=="__main__":
             # samples[0] = 40
             #samples = [196, 296]
             for k in samples:
+                print(f"====== CURRENT SAMPLE {k}/{len(samples)}")
                 if os.path.exists(os.path.join(args.pc_path, "bus")):
                     num_bus = len(os.listdir(os.path.join(args.pc_path, "bus")))
                 if os.path.exists(os.path.join(args.pc_path, "car")):

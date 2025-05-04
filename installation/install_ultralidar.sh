@@ -22,6 +22,15 @@ pip install nuscenes-devkit
 
 pip install tensorboard
 pip install scikit-image
+pip install --upgrade gradio
+
+pip install datasets
+pip install huggingface_hub
+
+### (optional): install this to push large file or bin file to github repo
+# conda install -c conda-forge git-lfs
+# git lfs install
+
 
 ############# installing poinTr (for point cloud completion), the same environment is used for running AnchorFormer
 conda create -n pointTr python=3.8 -y

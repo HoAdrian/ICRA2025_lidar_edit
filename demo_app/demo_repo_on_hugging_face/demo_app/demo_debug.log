@@ -1,0 +1,93 @@
+2025-05-04 02:36:23,466 - my_logger - INFO - 
+
+2025-05-04 02:36:23,466 - my_logger - INFO - >>>>>>> START LOGGING <<<<<<<<
+2025-05-04 02:36:23,466 - my_logger - INFO - NOTE: =============== currently at Sample 17 =========================
+2025-05-04 02:36:23,468 - my_logger - INFO - num initial objects: 101
+2025-05-04 02:38:18,281 - my_logger - CRITICAL - to list: [['19.59', '4.03', 'car', 0, '']]
+2025-05-04 02:38:18,282 - my_logger - INFO - insert xy pos list: [array([19.59,  4.03])]
+2025-05-04 02:38:18,282 - my_logger - INFO - insert alpha list: [0.0]
+2025-05-04 02:38:18,282 - my_logger - INFO - insert name list: ['car']
+2025-05-04 02:38:18,309 - my_logger - INFO - ---- inserting car : vehicle point cloud shape: (12544, 3) || insert xyz pos (z temp): [19.59        4.03       -1.58277303]
+2025-05-04 02:38:18,309 - my_logger - INFO - current_center=[ 7.37477303  3.74892298 -0.84427303], center3D=[ 7.37477303  3.74892298 -0.84427303]
+2025-05-04 02:38:18,330 - my_logger - INFO - after inserting vehicle point cloud shape: (12544, 3) || new scene point cloud scene shape: (17098, 3)
+2025-05-04 02:38:47,712 - my_logger - CRITICAL - to list: [['19.59', '4.03', 'car', 0, 'success'], ['11', '-13.98', 'bus', '0', '']]
+2025-05-04 02:38:47,712 - my_logger - INFO - insert xy pos list: [array([19.59,  4.03]), array([ 11.  , -13.98])]
+2025-05-04 02:38:47,712 - my_logger - INFO - insert alpha list: [0.0, 0.0]
+2025-05-04 02:38:47,712 - my_logger - INFO - insert name list: ['car', 'bus']
+2025-05-04 02:38:47,736 - my_logger - INFO - ---- inserting car : vehicle point cloud shape: (12544, 3) || insert xyz pos (z temp): [19.59        4.03       -1.58277303]
+2025-05-04 02:38:47,736 - my_logger - INFO - current_center=[ 7.37477303  3.74892298 -0.84427303], center3D=[ 7.37477303  3.74892298 -0.84427303]
+2025-05-04 02:38:47,744 - my_logger - INFO - **** warning: skip current vehicle due to collision with other boxes
+2025-05-04 02:38:47,746 - my_logger - INFO - ---- inserting bus : vehicle point cloud shape: (12544, 3) || insert xyz pos (z temp): [ 11.         -13.98        -1.97168186]
+2025-05-04 02:38:47,746 - my_logger - INFO - current_center=[ 6.59714676  4.50709256 -0.25968186], center3D=[ 6.59714676  4.50709256 -0.25968186]
+2025-05-04 02:38:47,752 - my_logger - INFO - **** warning: skip current vehicle due to collision with non-ground background points
+2025-05-04 02:38:56,736 - my_logger - CRITICAL - to list: [['19.59', '4.03', 'car', 0, 'colliding objects'], ['11', '-13.98', 'turck', '0', 'colliding background']]
+2025-05-04 02:38:56,736 - my_logger - CRITICAL - Error: 1th row: inserted object's class turck not in {'bus', 'car', 'truck'}
+2025-05-04 02:39:06,961 - my_logger - CRITICAL - to list: [['19.59', '4.03', 'car', 0, "Error: 1th row: inserted object's class turck not in {'bus', 'car', 'truck'}"], ['11', '-13.98', 'truck', '0', "Error: 1th row: inserted object's class turck not in {'bus', 'car', 'truck'}"]]
+2025-05-04 02:39:06,962 - my_logger - INFO - insert xy pos list: [array([19.59,  4.03]), array([ 11.  , -13.98])]
+2025-05-04 02:39:06,962 - my_logger - INFO - insert alpha list: [0.0, 0.0]
+2025-05-04 02:39:06,962 - my_logger - INFO - insert name list: ['car', 'truck']
+2025-05-04 02:39:06,995 - my_logger - INFO - ---- inserting car : vehicle point cloud shape: (12544, 3) || insert xyz pos (z temp): [19.59        4.03       -1.90166933]
+2025-05-04 02:39:06,995 - my_logger - INFO - current_center=[ 2.9589467  -7.22112216 -0.93466933], center3D=[ 2.9589467  -7.22112216 -0.93466933]
+2025-05-04 02:39:07,001 - my_logger - INFO - **** warning: skip current vehicle due to collision with other boxes
+2025-05-04 02:39:07,002 - my_logger - INFO - ---- inserting truck : vehicle point cloud shape: (12544, 3) || insert xyz pos (z temp): [ 11.         -13.98        -1.89847892]
+2025-05-04 02:39:07,002 - my_logger - INFO - current_center=[ 5.80599346  7.001309   -0.59797892], center3D=[ 5.80599346  7.001309   -0.59797892]
+2025-05-04 02:39:07,008 - my_logger - INFO - **** warning: skip current vehicle due to collision with non-ground background points
+2025-05-04 02:39:14,346 - my_logger - CRITICAL - to list: [['19.59', '4.03', 'car', 0, 'colliding objects'], ['11', '-13.98', 'truck', '90', 'colliding background']]
+2025-05-04 02:39:14,346 - my_logger - INFO - insert xy pos list: [array([19.59,  4.03]), array([ 11.  , -13.98])]
+2025-05-04 02:39:14,346 - my_logger - INFO - insert alpha list: [0.0, 1.5707963267948966]
+2025-05-04 02:39:14,346 - my_logger - INFO - insert name list: ['car', 'truck']
+2025-05-04 02:39:14,367 - my_logger - INFO - ---- inserting car : vehicle point cloud shape: (12544, 3) || insert xyz pos (z temp): [19.59        4.03       -1.69678992]
+2025-05-04 02:39:14,367 - my_logger - INFO - current_center=[ 3.7883739   1.6640557  -0.95828992], center3D=[ 3.7883739   1.6640557  -0.95828992]
+2025-05-04 02:39:14,373 - my_logger - INFO - **** warning: skip current vehicle due to collision with other boxes
+2025-05-04 02:39:14,374 - my_logger - INFO - ---- inserting truck : vehicle point cloud shape: (12544, 3) || insert xyz pos (z temp): [ 11.         -13.98        -2.13373959]
+2025-05-04 02:39:14,374 - my_logger - INFO - current_center=[ 5.8626615  -0.8562163  -0.58723959], center3D=[ 5.8626615  -0.8562163  -0.58723959]
+2025-05-04 02:39:14,395 - my_logger - INFO - after inserting vehicle point cloud shape: (12544, 3) || new scene point cloud scene shape: (17055, 3)
+2025-05-04 02:41:04,314 - my_logger - INFO - 
+
+2025-05-04 02:41:04,314 - my_logger - INFO - >>>>>>> START LOGGING <<<<<<<<
+2025-05-04 02:41:04,315 - my_logger - INFO - NOTE: =============== currently at Sample 17 =========================
+2025-05-04 02:41:04,316 - my_logger - INFO - num initial objects: 101
+2025-05-04 02:41:33,149 - my_logger - INFO - NOTE: =============== currently at Sample 6 =========================
+2025-05-04 02:41:33,154 - my_logger - INFO - num initial objects: 69
+2025-05-04 02:42:04,893 - my_logger - CRITICAL - to list: [['0.69', '10.7', 'car', '90', '']]
+2025-05-04 02:42:04,894 - my_logger - INFO - insert xy pos list: [array([ 0.69, 10.7 ])]
+2025-05-04 02:42:04,894 - my_logger - INFO - insert alpha list: [1.5707963267948966]
+2025-05-04 02:42:04,894 - my_logger - INFO - insert name list: ['car']
+2025-05-04 02:42:04,925 - my_logger - INFO - ---- inserting car : vehicle point cloud shape: (12544, 3) || insert xyz pos (z temp): [ 0.69       10.7        -1.58277303]
+2025-05-04 02:42:04,925 - my_logger - INFO - current_center=[ 7.37477303  3.74892298 -0.84427303], center3D=[ 7.37477303  3.74892298 -0.84427303]
+2025-05-04 02:42:04,960 - my_logger - INFO - after inserting vehicle point cloud shape: (12544, 3) || new scene point cloud scene shape: (16626, 3)
+2025-05-04 03:40:47,022 - my_logger - INFO - 
+
+2025-05-04 03:40:47,023 - my_logger - INFO - >>>>>>> START LOGGING <<<<<<<<
+2025-05-04 03:40:47,023 - my_logger - INFO - NOTE: =============== currently at Sample 17 =========================
+2025-05-04 03:40:47,024 - my_logger - INFO - num initial objects: 101
+2025-05-04 03:42:40,825 - my_logger - CRITICAL - to list: [['14.95', '', 'car', '0', '']]
+2025-05-04 03:42:40,825 - my_logger - CRITICAL - Error: could not convert string to float: ''
+2025-05-04 03:43:31,433 - my_logger - CRITICAL - to list: [['14.95', '2.88', 'car', '0', "Error: could not convert string to float: ''"]]
+2025-05-04 03:43:31,433 - my_logger - INFO - insert xy pos list: [array([14.95,  2.88])]
+2025-05-04 03:43:31,434 - my_logger - INFO - insert alpha list: [0.0]
+2025-05-04 03:43:31,434 - my_logger - INFO - insert name list: ['car']
+2025-05-04 03:43:31,461 - my_logger - INFO - ---- inserting car : vehicle point cloud shape: (12544, 3) || insert xyz pos (z temp): [14.95        2.88       -1.58277303]
+2025-05-04 03:43:31,462 - my_logger - INFO - current_center=[ 7.37477303  3.74892298 -0.84427303], center3D=[ 7.37477303  3.74892298 -0.84427303]
+2025-05-04 03:43:31,549 - my_logger - INFO - after inserting vehicle point cloud shape: (12544, 3) || new scene point cloud scene shape: (17089, 3)
+2025-05-04 03:53:11,011 - my_logger - INFO - 
+
+2025-05-04 03:53:11,011 - my_logger - INFO - >>>>>>> START LOGGING <<<<<<<<
+2025-05-04 03:53:11,011 - my_logger - INFO - NOTE: =============== currently at Sample 17 =========================
+2025-05-04 03:53:11,012 - my_logger - INFO - num initial objects: 101
+2025-05-04 03:54:33,724 - my_logger - CRITICAL - to list: [['', '', '', '0', '']]
+2025-05-04 03:54:33,725 - my_logger - CRITICAL - Error: could not convert string to float: ''
+2025-05-04 03:55:06,945 - my_logger - CRITICAL - to list: [['', '-4.21', 'car', '0', "Error: could not convert string to float: ''"]]
+2025-05-04 03:55:06,946 - my_logger - CRITICAL - Error: could not convert string to float: ''
+2025-05-04 03:55:27,138 - my_logger - CRITICAL - to list: [['22.47', '-4.21', 'car', '0', "Error: could not convert string to float: ''"]]
+2025-05-04 03:55:27,139 - my_logger - INFO - insert xy pos list: [array([22.47, -4.21])]
+2025-05-04 03:55:27,139 - my_logger - INFO - insert alpha list: [0.0]
+2025-05-04 03:55:27,139 - my_logger - INFO - insert name list: ['car']
+2025-05-04 03:55:27,162 - my_logger - INFO - ---- inserting car : vehicle point cloud shape: (12544, 3) || insert xyz pos (z temp): [22.47       -4.21       -1.58277303]
+2025-05-04 03:55:27,162 - my_logger - INFO - current_center=[ 7.37477303  3.74892298 -0.84427303], center3D=[ 7.37477303  3.74892298 -0.84427303]
+2025-05-04 03:55:27,252 - my_logger - INFO - after inserting vehicle point cloud shape: (12544, 3) || new scene point cloud scene shape: (17078, 3)
+2025-05-04 04:00:55,063 - my_logger - INFO - 
+
+2025-05-04 04:00:55,063 - my_logger - INFO - >>>>>>> START LOGGING <<<<<<<<
+2025-05-04 04:00:55,063 - my_logger - INFO - NOTE: =============== currently at Sample 17 =========================
+2025-05-04 04:00:55,065 - my_logger - INFO - num initial objects: 101

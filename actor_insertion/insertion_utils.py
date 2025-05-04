@@ -819,7 +819,8 @@ def sample_perturb_insert_pos(original_insert_xyz, current_viewing_angle, datase
     '''
     other_boxes = [(copy.deepcopy(other_box).corners().T[[0,1,5,4], :2]).astype(np.float32) for other_box in other_boxes]
     ### pick a random allocentric angle offset with 45 degrees
-    alphas = np.linspace(start=-np.pi/4, stop=np.pi/4, num=20)
+    # alphas = np.linspace(start=-np.pi/4, stop=np.pi/4, num=20) ## use pi/2 for website demo
+    alphas = np.linspace(start=-3*np.pi/2, stop=3*np.pi/2, num=20) ## use pi/2 for website demo, try 3*pi/2 too
     target_rand_alpha = 0
     # remember to shuffle
     np.random.shuffle(alphas)
@@ -828,7 +829,8 @@ def sample_perturb_insert_pos(original_insert_xyz, current_viewing_angle, datase
 
     for num_try in range(10): # try perturb at most 10 times, if it does not succeed, return None
         # sample a perturbed insert_pos
-        perturbed_insert_xyz_copy[:2] = perturb_2d(original_insert_xyz[:2], radius=2.5*2)
+        # perturbed_insert_xyz_copy[:2] = perturb_2d(original_insert_xyz[:2], radius=2.5) ### use 2.5*2 for webiste demo
+        perturbed_insert_xyz_copy[:2] = perturb_2d(original_insert_xyz[:2], radius=5.0) ### use 2.5*2 for webiste demo
 
         for rand_alpha in alphas:
             insert_box_copy = copy.deepcopy(insert_box)

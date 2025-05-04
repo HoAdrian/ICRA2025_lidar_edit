@@ -1,0 +1,32 @@
+2025-05-04 04:31:16,136 - my_logger - INFO - 
+
+2025-05-04 04:31:16,136 - my_logger - INFO - >>>>>>> START LOGGING <<<<<<<<
+2025-05-04 04:31:16,136 - my_logger - INFO - NOTE: =============== currently at Sample 17 =========================
+2025-05-04 04:31:16,138 - my_logger - INFO - num initial objects: 101
+2025-05-04 04:33:24,751 - my_logger - CRITICAL - to list: [['22.47', '-2.08', 'car', 0, '']]
+2025-05-04 04:33:24,751 - my_logger - INFO - insert xy pos list: [array([22.47, -2.08])]
+2025-05-04 04:33:24,751 - my_logger - INFO - insert alpha list: [0.0]
+2025-05-04 04:33:24,751 - my_logger - INFO - insert name list: ['car']
+2025-05-04 04:33:24,774 - my_logger - CRITICAL - Error: 'sample_520.pcd' is not in list
+2025-05-04 04:34:53,315 - my_logger - CRITICAL - to list: [['22.47', '-2.08', 'car', 0, "Error: 'sample_520.pcd' is not in list"]]
+2025-05-04 04:34:53,316 - my_logger - INFO - insert xy pos list: [array([22.47, -2.08])]
+2025-05-04 04:34:53,316 - my_logger - INFO - insert alpha list: [0.0]
+2025-05-04 04:34:53,316 - my_logger - INFO - insert name list: ['car']
+2025-05-04 04:34:53,341 - my_logger - CRITICAL - Error: 'sample_792.pcd' is not in list
+2025-05-04 04:34:57,039 - my_logger - CRITICAL - to list: [['22.47', '-2.08', 'car', 0, "Error: 'sample_792.pcd' is not in list"]]
+2025-05-04 04:34:57,040 - my_logger - INFO - insert xy pos list: [array([22.47, -2.08])]
+2025-05-04 04:34:57,041 - my_logger - INFO - insert alpha list: [0.0]
+2025-05-04 04:34:57,041 - my_logger - INFO - insert name list: ['car']
+2025-05-04 04:34:57,086 - my_logger - CRITICAL - Error: 'sample_835.pcd' is not in list
+2025-05-04 04:40:48,365 - my_logger - INFO - 
+
+2025-05-04 04:40:48,365 - my_logger - INFO - >>>>>>> START LOGGING <<<<<<<<
+2025-05-04 04:40:48,365 - my_logger - INFO - NOTE: =============== currently at Sample 17 =========================
+2025-05-04 04:40:48,376 - my_logger - INFO - num initial objects: 101
+2025-05-04 04:42:07,927 - my_logger - CRITICAL - to list: [['20.42', '2.65', 'car', '0', '']]
+2025-05-04 04:42:07,927 - my_logger - INFO - insert xy pos list: [array([20.42,  2.65])]
+2025-05-04 04:42:07,927 - my_logger - INFO - insert alpha list: [0.0]
+2025-05-04 04:42:07,928 - my_logger - INFO - insert name list: ['car']
+2025-05-04 04:42:07,949 - my_logger - INFO - ---- inserting car : vehicle point cloud shape: (12544, 3) || insert xyz pos (z temp): [20.42        2.65       -1.54158431]
+2025-05-04 04:42:07,950 - my_logger - INFO - current_center=[-3.47371336 10.18369805 -0.62908431], center3D=[-3.47371336 10.18369805 -0.62908431]
+2025-05-04 04:42:07,985 - my_logger - INFO - after inserting vehicle point cloud shape: (12544, 3) || new scene point cloud scene shape: (16336, 3)
