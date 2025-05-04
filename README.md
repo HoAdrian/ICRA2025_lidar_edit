@@ -4,6 +4,9 @@ Authors: Shing-Hei Ho, Bao Thach, Minghan Zhu
 
 Accepted at ICRA 2025
 
+# Project Website
+- https://sites.google.com/view/lidar-edit/home
+
 # Interactive demo
 - https://huggingface.co/spaces/Shing-Hei/LiDAR-EDIT_DEMO_ICRA2025
 - You can also choose to run the interactive demo locally by running demo.sh or app.py (faster)
